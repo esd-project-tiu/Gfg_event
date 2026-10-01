@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEVFIX — Developer Error Analyzer</title>
+<meta name="description" content="Paste a programming error and get a plain-English explanation, likely causes and a fix. Rule-based, runs in your browser.">
+<style>
+:root {
+  --bg: #0e1012;
+  --surface: #15181b;
+  --surface-2: #1b1f23;
+  --code-bg: #0a0c0e;
+  --line: #272c31;
+  --line-2: #343a41;
+  --text: #e7eaec;
+  --muted: #8d969e;
+  --accent: #10b981;
+  --accent-2: #34d399;
+  --accent-ink: #04130d;
+  --warn: #e0a93b;
+  --bad: #f0707a;
+  --radius: 12px;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.wrap { width: 100%; max-width: 920px; margin: 0 auto; padding: 0 20px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.skip {
+  position: absolute; left: 12px; top: -48px; background: var(--accent); color: var(--accent-ink);
+  padding: 8px 14px; border-radius: 8px; font-weight: 600; z-index: 10; text-decoration: none;
+}
+.skip:focus { top: 12px; }
+:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+/* Header */
+.site-header { border-bottom: 1px solid var(--line); background: rgba(14,16,18,.85); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; padding-bottom: 14px; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand svg { flex: none; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.brand-name { font-weight: 800; letter-spacing: .04em; font-size: 1.05rem; }
+.brand-tag { color: var(--muted); font-size: .8rem; }
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  border: 1px solid var(--line-2); background: var(--surface); color: var(--muted);
+  border-radius: 999px; padding: 4px 12px; font-size: .8rem;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+
+/* Hero */
+.hero { padding: 56px 0 28px; }
+.hero h1 {
+  margin: 0 0 14px; font-size: clamp(1.9rem, 4.6vw, 2.9rem); line-height: 1.12;
+  letter-spacing: -.025em; font-weight: 750; max-width: 16em;
+}
+.hero p { margin: 0; color: var(--muted); max-width: 40em; font-size: 1.05rem; }
+.hero .local-note { margin-top: 10px; font-size: .9rem; display: flex; align-items: center; gap: 8px; }
+.hero .local-note svg { color: var(--accent); flex: none; }
+
+/* Analyzer panel */
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+.field label, .controls label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: 8px; }
+textarea, select {
+  width: 100%; background: var(--code-bg); color: var(--text); border: 1px solid var(--line-2);
+  border-radius: 10px; font: inherit; transition: border-color .15s, box-shadow .15s;
+}
+textarea { font-family: var(--mono); font-size: .9rem; line-height: 1.55; padding: 14px; resize: vertical; min-height: 150px; }
+textarea::placeholder { color: #566069; }
+textarea:hover, select:hover { border-color: #46505a; }
+textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(16,185,129,.2); }
+textarea[aria-invalid="true"] { border-color: var(--bad); }
+.field-error { margin: 8px 0 0; color: var(--bad); font-size: .9rem; }
+.ctx { margin-top: 14px; }
+.ctx summary {
+  cursor: pointer; color: var(--muted); font-size: .9rem; padding: 6px 0; width: fit-content;
+  border-radius: 6px; list-style-position: inside;
+}
+.ctx summary:hover { color: var(--text); }
+.ctx textarea { margin-top: 8px; min-height: 130px; }
+.hint { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+
+.controls { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-top: 18px; flex-wrap: wrap; }
+.controls .lang { width: 200px; max-width: 100%; }
+select {
+  appearance: none; -webkit-appearance: none; padding: 11px 38px 11px 14px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238d969e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+}
+.buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.kbd-hint { color: var(--muted); font-size: .8rem; margin: 10px 0 0; text-align: right; }
+.kbd-hint kbd { font-family: var(--mono); border: 1px solid var(--line-2); border-radius: 5px; padding: 0 5px; font-size: .78rem; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: inherit; font-weight: 600; font-size: .95rem; cursor: pointer;
+  border-radius: 10px; padding: 11px 18px; border: 1px solid transparent;
+  transition: background-color .15s, border-color .15s, transform .05s;
+}
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { background: var(--accent-2); }
+.btn.primary[disabled] { opacity: .75; cursor: progress; }
+.btn.ghost { background: transparent; color: var(--text); border-color: var(--line-2); }
+.btn.ghost:hover { background: var(--surface-2); border-color: #46505a; }
+.btn.small { padding: 6px 12px; font-size: .85rem; border-radius: 8px; }
+.spinner {
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid rgba(4,19,13,.3); border-top-color: var(--accent-ink);
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.samples { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.samples-label { color: var(--muted); font-size: .88rem; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  font: inherit; font-size: .85rem; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 13px; cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+.chip:hover { border-color: var(--accent); background: rgba(16,185,129,.08); }
+
+/* Results */
+#output { margin: 28px 0 56px; }
+.stale {
+  margin-bottom: 12px; padding: 10px 14px; border-radius: 10px; font-size: .9rem;
+  border: 1px solid rgba(224,169,59,.4); background: rgba(224,169,59,.08); color: var(--warn);
+}
+.result {
+  background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: var(--radius); overflow: hidden; animation: arrive .25s ease-out;
+}
+.result.general { border-left-color: var(--warn); }
+.result.is-stale { opacity: .45; }
+@keyframes arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.result-head { padding: 22px 24px 20px; }
+.badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600;
+  border-radius: 999px; padding: 3px 11px; border: 1px solid;
+}
+.badge.known { color: var(--accent-2); border-color: rgba(52,211,153,.4); background: rgba(16,185,129,.1); }
+.badge.general { color: var(--warn); border-color: rgba(224,169,59,.45); background: rgba(224,169,59,.1); }
+.badge.plain { color: var(--muted); border-color: var(--line-2); font-weight: 500; }
+.badge.rule { font-family: var(--mono); font-weight: 400; }
+.result-head h2 { margin: 0 0 6px; font-size: 1.4rem; line-height: 1.25; letter-spacing: -.01em; }
+.result-head .summary { margin: 0; color: var(--muted); }
+.head-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.result-sec { padding: 20px 24px; border-top: 1px solid var(--line); }
+.result-sec h3 { margin: 0 0 10px; font-size: 1rem; }
+.result-sec p { margin: 0 0 10px; max-width: 70ch; }
+.result-sec p:last-child { margin-bottom: 0; }
+.result-sec ul, .result-sec ol { margin: 0; padding-left: 22px; max-width: 70ch; }
+.result-sec li { margin-bottom: 6px; }
+.result-sec li:last-child { margin-bottom: 0; }
+.result-sec li::marker { color: var(--accent); }
+code {
+  font-family: var(--mono); font-size: .88em; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; overflow-wrap: anywhere;
+}
+.code { margin: 14px 0 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--code-bg); }
+.code figcaption {
+  font-size: .8rem; color: var(--muted); padding: 7px 14px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px;
+}
+.code figcaption::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--muted); }
+.code.before figcaption::before { background: var(--bad); }
+.code.after figcaption::before { background: var(--accent); }
+.code pre { margin: 0; padding: 14px; overflow-x: auto; font-family: var(--mono); font-size: .86rem; line-height: 1.6; tab-size: 2; }
+.code pre code { background: none; border: 0; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.code.before pre { box-shadow: inset 3px 0 0 var(--bad); }
+.code.after pre { box-shadow: inset 3px 0 0 var(--accent); }
+.note { color: var(--muted); font-size: .88rem; margin-top: 12px !important; }
+.clues { background: rgba(16,185,129,.05); }
+.disclaimer { padding: 14px 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; background: var(--surface-2); }
+
+/* Footer, toast */
+footer { margin-top: auto; border-top: 1px solid var(--line); padding: 22px 0 28px; color: var(--muted); font-size: .88rem; }
+footer strong { color: var(--text); }
+#toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--line-2);
+  padding: 10px 18px; border-radius: 10px; font-size: .9rem; opacity: 0; pointer-events: none;
+  transition: opacity .2s, transform .2s; z-index: 20; max-width: calc(100vw - 32px); text-align: center;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#toast.bad { border-color: var(--bad); }
+
+@media (max-width: 640px) {
+  .hero { padding-top: 36px; }
+  .panel { padding: 16px; }
+  .brand-tag { display: none; }
+  .controls { flex-direction: column; align-items: stretch; }
+  .controls .lang { width: 100%; }
+  .buttons .btn.primary { flex: 1; }
+  .kbd-hint { text-align: left; }
+  .result-head, .result-sec { padding-left: 16px; padding-right: 16px; }
+  .disclaimer { padding-left: 16px; padding-right: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#error-input">Skip to analyzer</a>
+
+<header class="site-header">
+  <div class="wrap bar">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+        <rect width="34" height="34" rx="9" fill="#10b981"/>
+        <path d="M9 11.5 15.5 17 9 22.5" stroke="#04130d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M18.5 23h7" stroke="#04130d" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="25.5" cy="10.5" r="2.4" fill="#04130d"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">DEVFIX</span>
+        <span class="brand-tag">From cryptic errors to clear solutions.</span>
+      </div>
+    </div>
+    <span class="pill"><span class="dot" aria-hidden="true"></span>Rule-based analyzer</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <h1>Understand your errors. Fix them faster.</h1>
+    <p>Paste an error message and get a plain-English explanation, the likely causes and a fix you can adapt to your code.</p>
+    <p class="local-note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Analysis runs locally in your browser using known error patterns. Nothing is uploaded.
+    </p>
+  </section>
+
+  <section class="panel" aria-labelledby="analyzer-title">
+    <h2 id="analyzer-title" class="sr-only">Error analyzer</h2>
+
+    <div class="field">
+      <label for="error-input">Error message</label>
+      <textarea id="error-input" rows="6" spellcheck="false" autocomplete="off" autocapitalize="off"
+        placeholder="TypeError: Cannot read properties of undefined (reading 'name')"
+        aria-describedby="error-msg"></textarea>
+      <p id="error-msg" class="field-error" hidden></p>
+    </div>
+
+    <details class="ctx" id="ctx-details">
+      <summary>Add source code for context (optional)</summary>
+      <label for="ctx-input" class="sr-only">Source code context</label>
+      <textarea id="ctx-input" rows="6" spellcheck="false" autocomplete="off" autocapitalize="off"
+        placeholder="Paste the code around the error here"></textarea>
+      <p class="hint">Used only for simple hints, like showing the line the error points to. DEVFIX never runs or fully parses your code.</p>
+    </details>
+
+    <div class="controls">
+      <div class="lang">
+        <label for="lang">Language</label>
+        <select id="lang">
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="java">Java</option>
+          <option value="cpp">C++</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="buttons">
+        <button type="button" id="clear" class="btn ghost">Clear</button>
+        <button type="button" id="analyze" class="btn primary">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span id="analyze-label">Analyze error</span>
+        </button>
+      </div>
+    </div>
+    <p class="kbd-hint"><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd> also runs the analysis.</p>
+
+    <div class="samples">
+      <span class="samples-label" id="samples-label">Try a sample</span>
+      <div class="chips" id="samples" role="group" aria-labelledby="samples-label"></div>
+    </div>
+  </section>
+
+  <section id="output" aria-label="Analysis result">
+    <div id="stale" class="stale" hidden>Your input changed since this analysis. Select Analyze error to update the result.</div>
+    <div id="results" tabindex="-1" aria-label="Analysis result"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <strong>DEVFIX — Developer Error Analyzer.</strong>
+    Explanations are educational suggestions from a rule-based matcher. Always validate them against your actual code.
+  </div>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+     RULES
+     Each rule: id, lang, match (regex on the error text), name, summary,
+     what, causes[], fix[], example {lang, before, after}, prevent,
+     hint(match, context) -> string | null.
+     Rules are checked top to bottom per language, so MORE SPECIFIC
+     rules must come BEFORE generic ones. `generic: true` rules are never
+     used for cross-language suggestions.
+     ------------------------------------------------------------------ */
+
+  const LANG_LABELS = { javascript: "JavaScript", python: "Python", java: "Java", cpp: "C++", other: "Other" };
+
+  // Small helper used by hints: 1-based line numbers where a regex matches.
+  function findLines(ctx, re) {
+    const out = [];
+    ctx.split("\n").forEach(function (line, i) { if (re.test(line)) out.push(i + 1); });
+    return out;
+  }
+  function esc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+  function lineWord(nums) { return (nums.length === 1 ? "line " : "lines ") + nums.slice(0, 6).join(", "); }
+
+  // Shared "is this name declared in the snippet?" check for NameError / ReferenceError hints.
+  function declarationHint(name, ctx, declRe, langName) {
+    if (!name) return null;
+    if (!ctx.trim()) return "The missing name is `" + name + "`.";
+    if (declRe.test(ctx)) {
+      return "`" + name + "` is declared somewhere in your snippet. Check that it is declared before this line runs and is in scope (not inside another function or block).";
+    }
+    return "The name `" + name + "` is never declared in your snippet. Check for a typo, a missing " + langName + ", or a missing import.";
+  }
+
+  const RULES = [
+    /* ---------------------------- JavaScript ---------------------------- */
+    {
+      id: "js-undefined-prop", lang: "javascript",
+      match: /cannot (?:read|set) propert(?:y|ies) of undefined(?:\s*\((?:reading|setting)\s*'([^']*)'\))?/i,
+      name: "TypeError: property access on undefined",
+      summary: "Code tried to read or set a property on a value that is undefined.",
+      what: "Your code tried to read or set a property on a value that is currently `undefined`. JavaScript cannot look inside `undefined`, so it throws a TypeError at that exact moment.",
+      causes: [
+        "A variable was declared but never assigned a value.",
+        "A function returned nothing (so its result is `undefined`) and the result was used anyway.",
+        "`array.find()` found no match and returned `undefined`.",
+        "An object does not have the key you expected, for example because of a typo.",
+        "Data from an API, props or state has not loaded yet when the code runs."
+      ],
+      fix: [
+        "Find the line in the stack trace that points to your file.",
+        "Log the value right before that line with `console.log(value)` to confirm it is `undefined`.",
+        "Trace back to where it should have been set, and fix that source.",
+        "If a missing value is legitimate, guard the access with a check or optional chaining (`?.`)."
+      ],
+      example: {
+        lang: "JavaScript",
+        before: "const user = users.find(u => u.id === id);\nconsole.log(user.name);",
+        after: "const user = users.find(u => u.id === id);\nif (user && user.name) {\n  console.log(user.name);\n}\n\n// or, with optional chaining\nconsole.log(user?.name);"
+      },
+      prevent: "Initialize variables with sensible defaults, and use optional chaining or guard checks wherever data can be missing.",
+      hint: function (m, ctx) {
+        const prop = m[1];
+        if (!prop) return null;
+        let t = "The property being accessed is `" + prop + "`, so the value just before `." + prop + "` is the one that is undefined.";
+        if (ctx.trim()) {
+          const nums = findLines(ctx, new RegExp("\\." + esc(prop) + "\\b"));
+          if (nums.length) t += " In your snippet, `." + prop + "` appears on " + lineWord(nums) + ".";
+        }
+        return t;
+      }
+    },
+    {
+      id: "js-null-prop", lang: "javascript",
+      match: /cannot (?:read|set) propert(?:y|ies) of null/i,
+      name: "TypeError: property access on null",
+      summary: "Code tried to read or set a property on a value that is null.",
+      what: "Your code tried to read or set a property on a value that is `null`. `null` means \"no value\", so there is nothing to read from.",
+      causes: [
+        "`document.getElementById()` or `querySelector()` found no element, often because the script runs before the page has loaded or the selector is wrong.",
+        "A function, API or `JSON.parse` returned `null`.",
+        "A variable was explicitly set to `null` and used afterwards.",
+        "A regular-expression `match()` found nothing and returned `null`."
+      ],
+      fix: [
+        "Check the selector or ID for typos and make sure the element exists in the HTML.",
+        "Run the script after the DOM is ready, for example by placing the `<script>` at the end of `<body>` or using the `defer` attribute.",
+        "Check the value for `null` before using it."
+      ],
+      example: {
+        lang: "JavaScript",
+        before: "const btn = document.querySelector('#save');\nbtn.addEventListener('click', save);",
+        after: "const btn = document.querySelector('#save');\nif (btn) {\n  btn.addEventListener('click', save);\n}"
+      },
+      prevent: "Load scripts with `defer`, and check results of DOM lookups before using them.",
+      hint: null
+    },
+    {
+      id: "js-json-html", lang: "javascript",
+      match: /unexpected token\s*['"]?<|<!doctype[\s\S]*is not valid json/i,
+      name: "SyntaxError: JSON expected, HTML received",
+      summary: "Something tried to parse HTML as JSON, usually from a failed request.",
+      what: "`JSON.parse()` or `response.json()` received text starting with `<`, which is almost always an HTML page (such as a 404 or error page) instead of JSON.",
+      causes: [
+        "The request URL is wrong, so the server returned an HTML 404 page.",
+        "The server crashed or redirected to a login page and returned HTML.",
+        "A static host is serving `index.html` for an API path that does not exist there."
+      ],
+      fix: [
+        "Open the request URL in the browser or the Network tab and look at the actual response.",
+        "Check the URL, HTTP status and `Content-Type` header before calling `.json()`.",
+        "Fix the endpoint or server so it returns JSON."
+      ],
+      example: {
+        lang: "JavaScript",
+        before: "const data = await fetch('/api/users').then(r => r.json());",
+        after: "const res = await fetch('/api/users');\nif (!res.ok) {\n  throw new Error('Request failed: ' + res.status);\n}\nconst data = await res.json();"
+      },
+      prevent: "Always check `response.ok` before parsing the body.",
+      hint: null
+    },
+    {
+      id: "js-tdz", lang: "javascript",
+      match: /cannot access ['"]?([\w$]+)['"]? before initialization/i,
+      name: "ReferenceError: used before initialization",
+      summary: "A let, const or class variable was used before its declaration line ran.",
+      what: "A variable declared with `let`, `const` or `class` was used before the line that declares it has executed. Those variables exist but cannot be touched until the declaration runs.",
+      causes: [
+        "The variable is used above the line that declares it.",
+        "Two modules import each other, so one runs before the other finished.",
+        "A function runs earlier than expected and uses a variable declared later."
+      ],
+      fix: [
+        "Move the declaration above its first use.",
+        "If the use is inside a function, make sure the function is not called before the declaration runs."
+      ],
+      example: {
+        lang: "JavaScript",
+        before: "console.log(total);\nconst total = 10;",
+        after: "const total = 10;\nconsole.log(total);"
+      },
+      prevent: "Declare variables at the top of their scope, before anything uses them.",
+      hint: null
+    },
+    {
+      id: "js-reference", lang: "javascript",
+      match: /([\w$.]+) is not defined/i,
+      name: "ReferenceError: name is not defined",
+      summary: "The code uses a name that JavaScript cannot find in the current scope.",
+      what: "The code uses a variable or function name that does not exist in the current scope, so JavaScript cannot resolve it.",
+      causes: [
+        "A typo in the variable or function name (names are case-sensitive).",
+        "The variable was never declared with `let`, `const` or `var`.",
+        "The variable is declared inside another function or block and is out of scope here.",
+        "A missing `import`, or a script that defines the name loads after the one using it.",
+        "Browser-only names such as `window` or `document` used in Node.js."
+      ],
+      fix: [
+        "Check the spelling and capitalization of the name.",
+        "Declare the variable before using it, in a scope that the failing line can see.",
+        "Add the missing `import`, or fix the script load order."
+      ],
+      example: {
+        lang: "JavaScript",
+        before: "console.log(total);",
+        after: "let total = 0;\nconsole.log(total);"
+      },
+      prevent: "Use a linter such as ESLint (`no-undef`) to catch undeclared names while you type.",
+      hint: function (m, ctx) {
+        const name = m[1];
+        if (!name || name.indexOf(".") !== -1) return null;
+        return declarationHint(name, ctx, new RegExp("\\b(?:let|const|var|function|class|import)\\s+(?:[^;]*\\b)?" + esc(name) + "\\b"), "declaration");
+      }
+    },
+    {
+      id: "js-not-function", lang: "javascript",
+      match: /([^\s:]+) is not a function/i,
+      name: "TypeError: value is not a function",
+      summary: "Code tried to call something that is not a function.",
+      what: "The code tried to call something with `()`, but the value at that point is not a function.",
+      causes: [
+        "A typo in a method name, or the method does not exist on that object.",
+        "An array method such as `.map()` called on an object or string instead of an array.",
+        "A variable that holds a function was overwritten with another value.",
+        "A wrong import style (default versus named import), so the imported value is not the function you expect.",
+        "A callback argument was not passed in, so it is `undefined`."
+      ],
+      fix: [
+        "Log the value you are calling with `console.log(typeof value)`.",
+        "Check the spelling of the method and what type of value you really have.",
+        "Check how it is imported or defined."
+      ],
+      example: {
+        lang: "JavaScript",
+        before: "const items = { a: 1 };\nitems.map(x => x);",
+        after: "const items = [1, 2, 3];\nitems.map(x => x * 2);"
+      },
+      prevent: "Check types with `typeof` or `Array.isArray()` when values come from outside your code.",
+      hint: function (m) {
+        return m[1] ? "The code tried to call `" + m[1] + "`, which is not a function at that point." : null;
+      }
+    },
+    {
+      id: "js-stack", lang: "javascript",
+      match: /maximum call stack size exceeded/i,
+      name: "RangeError: Maximum call stack size exceeded",
+      summary: "Functions called each other so deeply that the call stack ran out of room.",
+      what: "Too many function calls were waiting to finish at once, and the call stack ran out of space. This is almost always recursion that never stops.",
+      causes: [
+        "A recursive function with no base case, or one that never reaches it.",
+        "Two functions that call each other forever.",
+        "A getter or setter that reads or writes the property it is defined for.",
+        "Genuinely very deep recursion on huge input."
+      ],
+      fix: [
+        "Find the repeating functions in the stack trace.",
+        "Add a base case that stops the recursion, and make sure each call moves toward it.",
+        "For very deep problems, switch to a loop."
+      ],
+      example: {
+        lang: "JavaScript",
+        before: "function countDown(n) {\n  console.log(n);\n  countDown(n - 1);\n}",
+        after: "function countDown(n) {\n  if (n < 0) return; // base case\n  console.log(n);\n  countDown(n - 1);\n}"
+      },
+      prevent: "Write the stopping condition of a recursive function first.",
+      hint: null
+    },
+    {
+      id: "js-syntax", lang: "javascript", generic: true,
+      match: /SyntaxError|unexpected (?:token|identifier|end of input|string|number)|invalid or unexpected token|missing \) after argument list/i,
+      name: "SyntaxError",
+      summary: "The code is not valid JavaScript at or just before the reported position.",
+      what: "JavaScript could not parse the code because something breaks the language's grammar. The parser reports where it got confused, but the real mistake is often a little earlier.",
+      causes: [
+        "A missing or extra bracket, brace, parenthesis, comma or quote.",
+        "A missing `)` after a function call or a missing `}` at the end of a block.",
+        "A reserved word used as a variable name.",
+        "Pasted text containing curly quotes or invisible characters.",
+        "Newer syntax running in an old environment that does not support it."
+      ],
+      fix: [
+        "Go to the reported line and look at the line just before it too.",
+        "Check that every `(`, `[`, `{` and quote is closed.",
+        "Use an editor with bracket matching or run a linter to spot the mismatch."
+      ],
+      example: {
+        lang: "JavaScript",
+        before: "function greet(name {\n  return 'Hi ' + name;\n}",
+        after: "function greet(name) {\n  return 'Hi ' + name;\n}"
+      },
+      prevent: "Format code automatically with Prettier so mismatched brackets stand out.",
+      hint: null
+    },
+
+    /* ------------------------------ Python ------------------------------ */
+    {
+      id: "py-indentation", lang: "python",
+      match: /IndentationError|expected an indented block|unexpected indent|unindent does not match/i,
+      name: "IndentationError",
+      summary: "The indentation of a line does not match what Python expects.",
+      what: "Python uses indentation to define blocks of code. A line is indented too much, too little, or inconsistently compared to what the surrounding code requires.",
+      causes: [
+        "A block after `if`, `for`, `def` or `class` has no indented body.",
+        "Spaces and tabs are mixed in the same file.",
+        "A line is indented more or less than the lines around it.",
+        "Code was pasted from another source with different indentation."
+      ],
+      fix: [
+        "Indent the body of every block by the same amount (4 spaces is the convention).",
+        "Convert tabs to spaces in your editor.",
+        "Check the reported line and the one above it."
+      ],
+      example: {
+        lang: "Python",
+        before: "def greet(name):\nprint('Hi ' + name)",
+        after: "def greet(name):\n    print('Hi ' + name)"
+      },
+      prevent: "Turn on \"show whitespace\" in your editor and always indent with spaces.",
+      hint: null
+    },
+    {
+      id: "py-module", lang: "python",
+      match: /ModuleNotFoundError|No module named/i,
+      name: "ModuleNotFoundError",
+      summary: "Python could not find a module that your code tries to import.",
+      what: "An `import` statement names a module that is not installed in the Python environment running your code, or the name is wrong.",
+      causes: [
+        "The package is not installed.",
+        "It is installed in a different Python environment than the one running the script.",
+        "A typo in the module name, or the import name differs from the package name (for example `cv2` comes from `opencv-python`).",
+        "A local file you are importing is in a different folder or is missing `__init__.py` in a package."
+      ],
+      fix: [
+        "Install the package with the same Python that runs your script: `python -m pip install <package>`.",
+        "Activate the right virtual environment before running.",
+        "Check the spelling and the official package name."
+      ],
+      example: {
+        lang: "Shell",
+        before: null,
+        after: "python -m pip install requests"
+      },
+      prevent: "Keep a `requirements.txt` and use one virtual environment per project.",
+      hint: function (m, ctx) {
+        const mod = /No module named\s+['"]([^'"]+)['"]/i.exec(m.input);
+        if (!mod) return null;
+        return "The missing module is `" + mod[1] + "`. Its pip package name may differ from the import name, so check the library's documentation.";
+      }
+    },
+    {
+      id: "py-zero-division", lang: "python",
+      match: /ZeroDivisionError|division by zero|modulo by zero/i,
+      name: "ZeroDivisionError",
+      summary: "Code divided a number by zero.",
+      what: "Python cannot divide by zero, so an operation using `/`, `//` or `%` had a denominator equal to 0 at that moment.",
+      causes: [
+        "A counter or length is 0 because a list is empty or nothing was counted.",
+        "A variable that should be non-zero was never updated or was set to 0.",
+        "User input or file data contains a zero."
+      ],
+      fix: [
+        "Print the denominator just before the failing line to confirm it is 0.",
+        "Check the denominator before dividing, and decide what should happen when it is 0.",
+        "Find out why the value is 0 in the first place."
+      ],
+      example: {
+        lang: "Python",
+        before: "average = total / count",
+        after: "if count != 0:\n    average = total / count\nelse:\n    average = 0  # choose what makes sense for your program"
+      },
+      prevent: "Validate inputs and guard every division whose denominator can reach 0.",
+      hint: function (m, ctx) {
+        if (!ctx.trim()) return null;
+        const nums = findLines(ctx, /[^/\s]\s*\/\/?\s*[^/\s]|\s%\s/);
+        return nums.length ? "Division or modulo operations appear on " + lineWord(nums) + " of your snippet." : null;
+      }
+    },
+    {
+      id: "py-attribute-none", lang: "python",
+      match: /'NoneType' object has no attribute/i,
+      name: "AttributeError: NoneType has no attribute",
+      summary: "Code used an attribute or method on None.",
+      what: "A value that is `None` was used as if it were an object with attributes or methods. `None` has none of them.",
+      causes: [
+        "A function has no `return` statement, so it returns `None`.",
+        "A method that changes data in place, such as `list.sort()` or `list.append()`, returns `None` and its result was stored.",
+        "A search such as `re.match()` or `dict.get()` found nothing and returned `None`.",
+        "A variable was set to `None` earlier and never replaced."
+      ],
+      fix: [
+        "Print the variable just before the failing line to confirm it is `None`.",
+        "Check that the function you called actually returns the value you expect.",
+        "Handle the case where a lookup finds nothing."
+      ],
+      example: {
+        lang: "Python",
+        before: "def find_user():\n    print('searching')\n\nuser = find_user()\nprint(user.name)",
+        after: "class User:\n    def __init__(self, name):\n        self.name = name\n\ndef find_user():\n    return User('Asha')\n\nuser = find_user()\nif user is not None:\n    print(user.name)"
+      },
+      prevent: "Make functions return a value on every path, and check for `None` where a result is optional.",
+      hint: null
+    },
+    {
+      id: "py-attribute", lang: "python",
+      match: /AttributeError/i,
+      name: "AttributeError",
+      summary: "Code used an attribute or method that the object does not have.",
+      what: "The object you are working with does not have the attribute or method that the code asked for.",
+      causes: [
+        "A typo in the attribute or method name (names are case-sensitive).",
+        "The object is a different type than you assumed, such as a string where you expected a list.",
+        "A method from a different version of a library, or a module that shadows a standard one (a file named `random.py`, for example).",
+        "The attribute is only created later, for example in another method that was not called yet."
+      ],
+      fix: [
+        "Print `type(obj)` and `dir(obj)` to see what the object really is and what it offers.",
+        "Check the spelling and the library's documentation.",
+        "Make sure none of your file names clash with a library name."
+      ],
+      example: {
+        lang: "Python",
+        before: "name = 'devfix'\nname.append('!')",
+        after: "name = 'devfix'\nname = name + '!'  # strings have no append(); build a new string"
+      },
+      prevent: "Use an editor with autocomplete and type hints so wrong attributes are flagged early.",
+      hint: function (m) {
+        const a = /has no attribute\s+['"]([^'"]+)['"]/i.exec(m.input);
+        return a ? "The missing attribute is `" + a[1] + "`." : null;
+      }
+    },
+    {
+      id: "py-type-concat", lang: "python",
+      match: /can only concatenate|unsupported operand type|must be str, not|cannot concatenate/i,
+      name: "TypeError: incompatible types in an operation",
+      summary: "An operator was used on values whose types do not work together.",
+      what: "Python was asked to combine two values with an operator (such as `+`) but their types do not support it, for example adding a string and a number.",
+      causes: [
+        "A number is joined to a string with `+` without converting it.",
+        "Input from `input()` is a string but is being used as a number.",
+        "A value is `None` or a list where a number was expected."
+      ],
+      fix: [
+        "Print the type of each operand with `type(x)`.",
+        "Convert one side so both match, for example with `str()`, `int()` or `float()`.",
+        "Use an f-string to build text from mixed values."
+      ],
+      example: {
+        lang: "Python",
+        before: "age = 21\nprint('Age: ' + age)",
+        after: "age = 21\nprint('Age: ' + str(age))\n# or\nprint(f'Age: {age}')"
+      },
+      prevent: "Convert user input right after reading it, and keep variable types consistent.",
+      hint: null
+    },
+    {
+      id: "py-type-args", lang: "python",
+      match: /positional arguments? but \d+ (?:was|were) given|missing \d+ required (?:positional|keyword-only) arguments?|unexpected keyword argument/i,
+      name: "TypeError: wrong arguments in a call",
+      summary: "A function was called with the wrong number or names of arguments.",
+      what: "The call passes more, fewer or differently named arguments than the function definition accepts.",
+      causes: [
+        "An argument was forgotten, or an extra one was added.",
+        "A method defined without `self`, or a call that does not match the method's parameters (`self` counts toward the number in the message).",
+        "A keyword argument name has a typo or the function does not accept it."
+      ],
+      fix: [
+        "Compare the function definition with the call that fails.",
+        "Check parameter names and their order.",
+        "For methods, make sure the first parameter is `self`."
+      ],
+      example: {
+        lang: "Python",
+        before: "def add(a, b):\n    return a + b\n\nadd(1)",
+        after: "def add(a, b):\n    return a + b\n\nadd(1, 2)"
+      },
+      prevent: "Use default values and type hints so call mistakes are easy to spot.",
+      hint: null
+    },
+    {
+      id: "py-type-callable", lang: "python",
+      match: /object is not callable/i,
+      name: "TypeError: object is not callable",
+      summary: "Code called something with () that is not a function.",
+      what: "The code put parentheses after a value, which means \"call this\", but the value is not a function.",
+      causes: [
+        "A variable shadows a built-in function, for example `sum = 10` followed by `sum([1, 2])`.",
+        "Missing operator between a value and a parenthesis, such as `x (y)`.",
+        "A method and an attribute share the same name."
+      ],
+      fix: [
+        "Look at the name before the `(` and check what it currently holds.",
+        "Rename variables that clash with built-ins such as `list`, `sum`, `max` or `str`."
+      ],
+      example: {
+        lang: "Python",
+        before: "sum = 10\nprint(sum([1, 2, 3]))",
+        after: "total = 10\nprint(sum([1, 2, 3]))"
+      },
+      prevent: "Never name variables after built-in functions.",
+      hint: null
+    },
+    {
+      id: "py-type-subscript", lang: "python",
+      match: /object is not subscriptable|object is not iterable|object does not support item assignment/i,
+      name: "TypeError: value does not support indexing or iteration",
+      summary: "Code used [] or a loop on a value that does not support it.",
+      what: "The code tried to index (`value[0]`), loop over, or assign into a value whose type does not allow that.",
+      causes: [
+        "The value is `None` because a function returned nothing or `list.sort()` result was stored.",
+        "The value is a number or other non-container type.",
+        "A tuple or string, which cannot be changed in place, is being assigned into."
+      ],
+      fix: [
+        "Print the value and `type(value)` before the failing line.",
+        "Trace back to where it was assigned and check that it holds the container you expect."
+      ],
+      example: {
+        lang: "Python",
+        before: "result = [3, 1, 2].sort()\nprint(result[0])",
+        after: "numbers = [3, 1, 2]\nnumbers.sort()  # sorts in place and returns None\nprint(numbers[0])"
+      },
+      prevent: "Remember that in-place methods return `None`; use `sorted()` if you need a new list.",
+      hint: null
+    },
+    {
+      id: "py-type-generic", lang: "python", generic: true,
+      match: /TypeError/i,
+      name: "TypeError",
+      summary: "An operation was applied to a value of the wrong type.",
+      what: "Python received a value of a type that the operation or function cannot work with. The exact cause depends on the rest of the message.",
+      causes: [
+        "A function received an argument of the wrong type.",
+        "Values of different types were combined with an operator.",
+        "A value is `None` where something else was expected."
+      ],
+      fix: [
+        "Read the full message, since it usually names the types involved.",
+        "Print `type(x)` for the values on the failing line.",
+        "Convert or validate the values before using them."
+      ],
+      example: null,
+      prevent: "Validate input types at the boundaries of your program.",
+      hint: null
+    },
+    {
+      id: "py-name", lang: "python",
+      match: /NameError/i,
+      name: "NameError",
+      summary: "Code uses a name that Python has not defined yet.",
+      what: "Python hit a variable, function or module name that has not been defined at that point in the program.",
+      causes: [
+        "The variable is used before it is assigned.",
+        "A typo in the name (names are case-sensitive).",
+        "The name was created inside a function and is not visible outside it.",
+        "A missing `import` for a module or function."
+      ],
+      fix: [
+        "Check the spelling and capitalization of the name.",
+        "Assign the variable before the line that uses it.",
+        "Add the missing `import`, or move the definition so it is visible where it is used."
+      ],
+      example: {
+        lang: "Python",
+        before: "print(total)",
+        after: "total = 0\nprint(total)"
+      },
+      prevent: "Initialize variables early, and use an editor or linter that highlights undefined names.",
+      hint: function (m, ctx) {
+        const n = /name\s+'([^']+)'/i.exec(m.input);
+        if (!n) return null;
+        const name = n[1];
+        return declarationHint(name, ctx, new RegExp("(?:\\b" + esc(name) + "\\s*=[^=]|\\bdef\\s+" + esc(name) + "\\b|\\bclass\\s+" + esc(name) + "\\b|\\bimport\\s+.*\\b" + esc(name) + "\\b|\\bfor\\s+" + esc(name) + "\\b)"), "assignment");
+      }
+    },
+    {
+      id: "py-key", lang: "python",
+      match: /KeyError/i,
+      name: "KeyError",
+      summary: "Code looked up a dictionary key that does not exist.",
+      what: "Your code asked a dictionary for a key that it does not contain.",
+      causes: [
+        "A typo or different capitalization in the key.",
+        "The key was never added, or was removed earlier.",
+        "A number was used where the key is a string (or the reverse).",
+        "JSON or API data does not always include that field."
+      ],
+      fix: [
+        "Print the dictionary's keys with `print(d.keys())` to see what is really there.",
+        "Use `d.get(key, default)` when a missing key is acceptable.",
+        "Check with `if key in d:` before reading."
+      ],
+      example: {
+        lang: "Python",
+        before: "ages = {'asha': 21}\nprint(ages['ravi'])",
+        after: "ages = {'asha': 21}\nprint(ages.get('ravi', 'unknown'))\n\n# or check first\nif 'ravi' in ages:\n    print(ages['ravi'])"
+      },
+      prevent: "Use `.get()` for optional data, and keep key names in constants to avoid typos.",
+      hint: function (m) {
+        const k = /KeyError:\s*(.+)/.exec(m.input);
+        return k ? "The missing key is `" + k[1].trim().replace(/`/g, "'") + "`." : null;
+      }
+    },
+    {
+      id: "py-index", lang: "python",
+      match: /IndexError/i,
+      name: "IndexError",
+      summary: "Code used a list position that is outside the list.",
+      what: "You asked for an item at a position that does not exist in the list, tuple or string. Valid positions run from 0 to length - 1.",
+      causes: [
+        "An off-by-one mistake, such as using `len(items)` as an index.",
+        "The list is empty or shorter than expected.",
+        "A loop runs past the end of the list."
+      ],
+      fix: [
+        "Print `len(items)` and the index you use.",
+        "Loop with `for item in items:` instead of managing indexes by hand.",
+        "Check the length before indexing."
+      ],
+      example: {
+        lang: "Python",
+        before: "items = [10, 20, 30]\nprint(items[3])",
+        after: "items = [10, 20, 30]\nif 3 < len(items):\n    print(items[3])\nelse:\n    print('No item at index 3')"
+      },
+      prevent: "Prefer iterating directly over a list, and check the length of data you did not create.",
+      hint: null
+    },
+    {
+      id: "py-syntax", lang: "python", generic: true,
+      match: /SyntaxError/i,
+      name: "SyntaxError",
+      summary: "The code is not valid Python at or just before the reported position.",
+      what: "Python could not parse the code because it breaks the language's grammar. The caret in the message points to where the parser noticed the problem, which can be slightly after the real mistake.",
+      causes: [
+        "A missing colon `:` after `if`, `for`, `while`, `def` or `class`.",
+        "An unclosed parenthesis, bracket or quote on this or a previous line.",
+        "`=` used where `==` was meant inside a condition.",
+        "Python 2 code such as `print 'x'` run in Python 3.",
+        "Curly quotes or odd characters from copy and paste."
+      ],
+      fix: [
+        "Look at the reported line and the line above it.",
+        "Check that every bracket and quote is closed and every block header ends with `:`.",
+        "Compare against a working example of the same statement."
+      ],
+      example: {
+        lang: "Python",
+        before: "if score > 50\n    print('pass')",
+        after: "if score > 50:\n    print('pass')"
+      },
+      prevent: "Use an editor with syntax highlighting; unclosed quotes and brackets show up immediately.",
+      hint: null
+    },
+
+    /* ------------------------------- Java ------------------------------- */
+    {
+      id: "java-npe", lang: "java",
+      match: /NullPointerException/i,
+      name: "NullPointerException",
+      summary: "Code used a reference that points to null.",
+      what: "Your program tried to use an object (call a method, read a field, or access an array) through a reference that currently holds `null`, meaning it points to no object.",
+      causes: [
+        "A variable or field was declared but never assigned an object.",
+        "A method returned `null`, for example a failed lookup in a `Map` or a search that found nothing.",
+        "An array of objects was created, but its elements were never filled in.",
+        "Auto-unboxing a `null` `Integer` or other wrapper into a primitive."
+      ],
+      fix: [
+        "Open the first stack-trace line that points to your own code.",
+        "Work out which variable or method result is null on that line.",
+        "Trace back to where it should have been assigned, and fix that source.",
+        "Add a null check only where null is a legitimate value."
+      ],
+      example: {
+        lang: "Java",
+        before: "String name = null;\nSystem.out.println(name.length());",
+        after: "String name = null;\nif (name != null) {\n    System.out.println(name.length());\n}"
+      },
+      prevent: "Initialize fields, avoid returning null (use empty collections or `Optional`), and check values from external sources.",
+      hint: function (m) {
+        const b = /because\s+"([^"]+)"\s+is null/i.exec(m.input);
+        if (b) return "The message says " + "`" + b[1].replace(/`/g, "'") + "` is null. That is the exact expression to investigate.";
+        return null;
+      }
+    },
+    {
+      id: "java-aioobe", lang: "java",
+      match: /ArrayIndexOutOfBoundsException/i,
+      name: "ArrayIndexOutOfBoundsException",
+      summary: "Code used an array index that is outside the array.",
+      what: "An array access used an index that is negative or greater than or equal to the array length. Valid indexes run from 0 to `length - 1`.",
+      causes: [
+        "An off-by-one loop such as `i <= arr.length` instead of `i < arr.length`.",
+        "The array is smaller than expected, for example empty.",
+        "An index calculation produced a negative or too large number.",
+        "`args[0]` is read when no command-line arguments were given."
+      ],
+      fix: [
+        "Read the index and length from the message and compare them.",
+        "Loop with `i < arr.length`, or use an enhanced `for` loop.",
+        "Check the array length before indexing data you did not create."
+      ],
+      example: {
+        lang: "Java",
+        before: "int[] nums = {1, 2, 3};\nfor (int i = 0; i <= nums.length; i++) {\n    System.out.println(nums[i]);\n}",
+        after: "int[] nums = {1, 2, 3};\nfor (int i = 0; i < nums.length; i++) {\n    System.out.println(nums[i]);\n}"
+      },
+      prevent: "Prefer enhanced `for` loops, and always use `< length`, not `<= length`.",
+      hint: function (m) {
+        const x = /Index\s+(-?\d+)\s+out of bounds for length\s+(\d+)/i.exec(m.input);
+        if (!x) return null;
+        const len = parseInt(x[2], 10);
+        return "Index " + x[1] + " was used on an array of length " + len + ". " + (len > 0 ? "Valid indexes are 0 to " + (len - 1) + "." : "The array is empty, so no index is valid.");
+      }
+    },
+    {
+      id: "java-cnfe", lang: "java",
+      match: /ClassNotFoundException/i,
+      name: "ClassNotFoundException",
+      summary: "Java could not find a class by name at runtime.",
+      what: "The JVM tried to load a class by its name while the program was running, and could not find it on the classpath.",
+      causes: [
+        "A library JAR is missing from the classpath.",
+        "The class name or package is spelled wrong, or its case does not match the file name.",
+        "The program was compiled but the `.class` files are not where Java is looking.",
+        "A JDBC driver or similar library is not included in the build."
+      ],
+      fix: [
+        "Check the full class name, including package, in the message.",
+        "Add the missing JAR or dependency to the classpath or build file (Maven or Gradle).",
+        "Run from the directory that matches the package structure, or pass `-cp` correctly."
+      ],
+      example: {
+        lang: "Shell",
+        before: "java Main",
+        after: "java -cp .:lib/* Main    # use ; instead of : on Windows"
+      },
+      prevent: "Manage dependencies with Maven or Gradle rather than copying JARs by hand.",
+      hint: function (m) {
+        const c = /ClassNotFoundException:\s*([\w.$]+)/.exec(m.input);
+        return c ? "The missing class is `" + c[1] + "`." : null;
+      }
+    },
+    {
+      id: "java-nfe", lang: "java",
+      match: /NumberFormatException/i,
+      name: "NumberFormatException",
+      summary: "Text could not be converted into a number.",
+      what: "A method such as `Integer.parseInt()` received text that is not a valid number in the expected format.",
+      causes: [
+        "The text contains letters, symbols or spaces, for example `\"12a\"` or `\" 7\"`.",
+        "The text is empty or null.",
+        "A decimal such as `\"3.5\"` is parsed as an `int`.",
+        "The number is too large for the type."
+      ],
+      fix: [
+        "Print the exact string being parsed (the message usually shows it).",
+        "Trim and validate the text before parsing.",
+        "Catch the exception and handle bad input."
+      ],
+      example: {
+        lang: "Java",
+        before: "int n = Integer.parseInt(input);",
+        after: "int n;\ntry {\n    n = Integer.parseInt(input.trim());\n} catch (NumberFormatException e) {\n    System.out.println(\"Please enter a whole number.\");\n    return;\n}"
+      },
+      prevent: "Never trust user input; validate and catch parse errors.",
+      hint: function (m) {
+        const s = /For input string:\s*"([^"]*)"/i.exec(m.input);
+        return s ? "The text that failed to parse was `" + s[1].replace(/`/g, "'") + "`." : null;
+      }
+    },
+    {
+      id: "java-stack", lang: "java",
+      match: /StackOverflowError/i,
+      name: "StackOverflowError",
+      summary: "Method calls nested so deeply that the call stack was exhausted.",
+      what: "Too many method calls were active at once and the thread's stack ran out of memory. This is almost always recursion that does not end.",
+      causes: [
+        "A recursive method without a base case, or one that never reaches it.",
+        "Two methods that call each other endlessly.",
+        "A `toString()`, `equals()` or `hashCode()` that indirectly calls itself.",
+        "Genuinely very deep recursion on large input."
+      ],
+      fix: [
+        "Look at the repeating methods in the stack trace.",
+        "Add or correct the base case so each call moves toward it.",
+        "For deep problems, use a loop or an explicit stack."
+      ],
+      example: {
+        lang: "Java",
+        before: "static int factorial(int n) {\n    return n * factorial(n - 1);\n}",
+        after: "static int factorial(int n) {\n    if (n <= 1) return 1; // base case\n    return n * factorial(n - 1);\n}"
+      },
+      prevent: "Define the stopping condition before writing the recursive call.",
+      hint: null
+    },
+
+    /* -------------------------------- C++ -------------------------------- */
+    {
+      id: "cpp-segfault", lang: "cpp",
+      match: /segmentation fault|SIGSEGV|\bsegfault\b/i,
+      name: "Segmentation fault",
+      summary: "The program touched memory it is not allowed to access.",
+      what: "The operating system stopped your program because it read or wrote a memory address it does not own. The message gives no line number, so you need a tool to find the exact spot.",
+      causes: [
+        "Dereferencing a null, uninitialized or dangling pointer.",
+        "Reading or writing outside an array or vector (out-of-bounds index).",
+        "Using memory after `delete` or `free`, or returning a pointer to a local variable.",
+        "Infinite or very deep recursion that overflows the stack.",
+        "Writing to a string literal or other read-only memory."
+      ],
+      fix: [
+        "Recompile with debug info and sanitizers: `g++ -g -fsanitize=address,undefined main.cpp -o app`.",
+        "Run it again. AddressSanitizer usually prints the exact line and the kind of bad access.",
+        "Or run `gdb ./app`, then `run`, then `bt` to see the stack at the crash.",
+        "Check pointers for `nullptr` before dereferencing and keep indexes within bounds."
+      ],
+      example: {
+        lang: "C++",
+        before: "int* p = nullptr;\n*p = 10;",
+        after: "int value = 0;\nint* p = &value;   // p now points to valid memory\n*p = 10;"
+      },
+      prevent: "Prefer `std::vector`, `.at()` and smart pointers (`std::unique_ptr`) over raw pointers and arrays.",
+      hint: function (m, ctx) {
+        if (!ctx.trim()) return null;
+        const nums = findLines(ctx, /\bnullptr\b|\bNULL\b/);
+        return nums.length ? "`nullptr` or `NULL` appears on " + lineWord(nums) + " of your snippet. Check whether that pointer is dereferenced before it is set to a valid address." : null;
+      }
+    },
+    {
+      id: "cpp-undefined-ref", lang: "cpp",
+      match: /undefined reference to|unresolved external symbol|ld returned 1 exit status/i,
+      name: "Linker error: undefined reference",
+      summary: "The compiler found a declaration but the linker found no definition.",
+      what: "Your code compiled, but the linker could not find the actual definition of a function or variable that was declared and used. This is a linking problem, not a syntax problem.",
+      causes: [
+        "A function is declared in a header but its `.cpp` file is not part of the build.",
+        "The function is defined with a different signature than its declaration.",
+        "A library is not linked (a missing `-l` flag).",
+        "A class member is declared but never defined, or `main` is missing."
+      ],
+      fix: [
+        "Include every source file in the compile command, or add it to your build system.",
+        "Make sure the definition matches the declaration exactly (name, parameters, `const`).",
+        "Add the library with `-l` and its path with `-L` if one is needed."
+      ],
+      example: {
+        lang: "Shell",
+        before: "g++ main.cpp -o app",
+        after: "g++ main.cpp math.cpp -o app"
+      },
+      prevent: "Use a build system such as CMake or a Makefile so all source files are always compiled.",
+      hint: function (m) {
+        const s = /undefined reference to\s*[`'\u2018"]([^'`\u2019"]+)['`\u2019"]/i.exec(m.input);
+        return s ? "The symbol the linker could not find is `" + s[1].replace(/`/g, "'") + "`." : null;
+      }
+    },
+    {
+      id: "cpp-expected-semicolon", lang: "cpp",
+      match: /expected\s+[`'"\u2018\u201C]?;[`'"\u2019\u201D]?/i,
+      name: "Compiler error: expected ';'",
+      summary: "The compiler expected a semicolon where it found something else.",
+      what: "A statement or declaration is missing its closing semicolon. The compiler often reports the error on the line AFTER the one that is missing the `;`, because that is where it realizes something is wrong.",
+      causes: [
+        "A missing `;` at the end of the previous statement.",
+        "A missing `;` after a `struct` or `class` definition's closing brace.",
+        "A missing `)` or `}` earlier that confuses the parser."
+      ],
+      fix: [
+        "Look at the line the error points to, then at the line before it.",
+        "Add the missing `;` at the end of the statement.",
+        "If the error persists, check for unclosed brackets above."
+      ],
+      example: {
+        lang: "C++",
+        before: "int x = 5\nstd::cout << x;",
+        after: "int x = 5;\nstd::cout << x;"
+      },
+      prevent: "Format your code with clang-format; a missing semicolon shows up as odd indentation.",
+      hint: null
+    },
+    {
+      id: "cpp-no-matching-function", lang: "cpp",
+      match: /no matching (?:member )?function(?: for call)?/i,
+      name: "Compiler error: no matching function",
+      summary: "A function call does not match any available declaration.",
+      what: "The compiler looked for a function with that name that accepts the arguments you passed, and none fits.",
+      causes: [
+        "The wrong number of arguments.",
+        "An argument of a type that cannot be converted to the parameter type.",
+        "A missing `#include` or a wrong namespace, so the right function is not visible.",
+        "A `const` mismatch between the object and the method."
+      ],
+      fix: [
+        "Read the \"candidate\" notes below the error: they list the signatures that exist.",
+        "Compare your arguments with each candidate.",
+        "Fix the arguments, add a conversion, or include the right header."
+      ],
+      example: {
+        lang: "C++",
+        before: "void greet(std::string name);\n\ngreet(42);",
+        after: "void greet(std::string name);\n\ngreet(\"Asha\");"
+      },
+      prevent: "Check function signatures when you call unfamiliar functions, and use an editor with signature hints.",
+      hint: null
+    },
+    {
+      id: "cpp-cannot-convert", lang: "cpp",
+      match: /cannot convert|invalid conversion from|no known conversion/i,
+      name: "Compiler error: type conversion",
+      summary: "A value of one type was used where an incompatible type is required.",
+      what: "The compiler cannot automatically turn a value of one type into the type that is required, such as a string into an `int`.",
+      causes: [
+        "Assigning or passing a value of the wrong type.",
+        "Mixing `std::string` and `char*`, or pointers and values.",
+        "A function returns a different type than the variable that stores it."
+      ],
+      fix: [
+        "Compare the two types in the message: one is what you gave, the other is what was needed.",
+        "Change the variable type, or convert explicitly when it is safe (for example with `std::stoi`).",
+        "Check the function's return type."
+      ],
+      example: {
+        lang: "C++",
+        before: "int count = \"five\";",
+        after: "int count = 5;\n// or, to convert text to a number\nint parsed = std::stoi(\"5\");"
+      },
+      prevent: "Use `auto` where the type is obvious, and avoid C-style casts that hide mistakes.",
+      hint: null
+    },
+    {
+      id: "cpp-out-of-range", lang: "cpp", generic: true,
+      match: /out_of_range|_M_range_check|\bout of range\b/i,
+      name: "std::out_of_range",
+      summary: "A checked access used an index or position outside the container.",
+      what: "A container method that checks bounds, such as `vector::at()` or `string::substr()`, received an index beyond the container's size and threw `std::out_of_range`.",
+      causes: [
+        "An off-by-one mistake when looping.",
+        "The container is empty or smaller than assumed.",
+        "A computed index became negative or too large."
+      ],
+      fix: [
+        "Compare the index with `size()` (the message usually prints both).",
+        "Loop with `i < v.size()`.",
+        "Check `empty()` before reading the first or last element."
+      ],
+      example: {
+        lang: "C++",
+        before: "std::vector<int> v = {1, 2, 3};\nstd::cout << v.at(5);",
+        after: "std::vector<int> v = {1, 2, 3};\nsize_t i = 5;\nif (i < v.size()) {\n    std::cout << v.at(i);\n}"
+      },
+      prevent: "Prefer range-based `for` loops, which cannot go out of bounds.",
+      hint: function (m) {
+        const x = /__n\s*\(which is (\d+)\)\s*>=\s*this->size\(\)\s*\(which is (\d+)\)/.exec(m.input);
+        return x ? "Index " + x[1] + " was used on a container of size " + x[2] + "." : null;
+      }
+    }
+  ];
+
+  const GENERAL_STEPS = [
+    "Read the complete error message, not just the first line.",
+    "Find the file name and line number in the message or stack trace.",
+    "Inspect the variables involved on that line and print their values and types.",
+    "Check the inputs and return values of the function being called.",
+    "Reproduce the error with the smallest possible test case."
+  ];
+
+  const SAMPLES = [
+    {
+      label: "JS undefined property", lang: "javascript",
+      error: "TypeError: Cannot read properties of undefined (reading 'name')\n    at showUser (app.js:3:48)",
+      ctx: "const users = [{ id: 1, name: \"Asha\" }];\nfunction showUser(id) {\n  console.log(users.find(u => u.id === id).name);\n}\nshowUser(2);"
+    },
+    {
+      label: "Python NameError", lang: "python",
+      error: "Traceback (most recent call last):\n  File \"main.py\", line 2, in <module>\n    print(total)\nNameError: name 'total' is not defined",
+      ctx: "price = 20\nprint(total)"
+    },
+    {
+      label: "Python ZeroDivisionError", lang: "python",
+      error: "Traceback (most recent call last):\n  File \"main.py\", line 3, in <module>\n    average = total / count\nZeroDivisionError: division by zero",
+      ctx: "total = 120\ncount = 0\naverage = total / count\nprint(average)"
+    },
+    {
+      label: "Java NullPointerException", lang: "java",
+      error: "Exception in thread \"main\" java.lang.NullPointerException: Cannot invoke \"String.length()\" because \"name\" is null\n\tat Main.main(Main.java:4)",
+      ctx: "public class Main {\n    public static void main(String[] args) {\n        String name = null;\n        System.out.println(name.length());\n    }\n}"
+    },
+    {
+      label: "C++ segfault", lang: "cpp",
+      error: "Segmentation fault (core dumped)",
+      ctx: "#include <iostream>\nint main() {\n    int* p = nullptr;\n    *p = 10;\n    return 0;\n}"
+    }
+  ];
+
+  /* ------------------------------------------------------------------
+     DOM helpers (all user text is inserted with textContent only)
+     ------------------------------------------------------------------ */
+  const $ = function (id) { return document.getElementById(id); };
+  const els = {
+    error: $("error-input"), errMsg: $("error-msg"), ctx: $("ctx-input"), ctxDetails: $("ctx-details"),
+    lang: $("lang"), analyze: $("analyze"), analyzeLabel: $("analyze-label"), clear: $("clear"),
+    samples: $("samples"), results: $("results"), stale: $("stale"), toast: $("toast")
+  };
+  const state = { hasResult: false, busy: false, toastTimer: null };
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  // Text with `inline code` segments, built with DOM nodes (no innerHTML).
+  function rich(parent, text) {
+    String(text).split("`").forEach(function (part, i) {
+      if (!part) return;
+      if (i % 2) { parent.appendChild(el("code", "", part)); }
+      else { parent.appendChild(document.createTextNode(part)); }
+    });
+    return parent;
+  }
+  function para(text, cls) { return rich(el("p", cls), text); }
+  function list(tag, items) {
+    const l = el(tag);
+    items.forEach(function (t) { l.appendChild(rich(el("li"), t)); });
+    return l;
+  }
+  function section(title, cls) {
+    const s = el("section", "result-sec" + (cls ? " " + cls : ""));
+    s.appendChild(el("h3", "", title));
+    for (let i = 2; i < arguments.length; i++) s.appendChild(arguments[i]);
+    return s;
+  }
+  function codeBlock(label, code, kind) {
+    const fig = el("figure", "code " + kind);
+    fig.appendChild(el("figcaption", "", label));
+    const pre = el("pre");
+    pre.tabIndex = 0;
+    pre.setAttribute("aria-label", label);
+    pre.appendChild(el("code", "", code));
+    fig.appendChild(pre);
+    return fig;
+  }
+
+  /* ------------------------------------------------------------------
+     Analysis engine
+     ------------------------------------------------------------------ */
+  // Keep formatting, drop BOM / CRLF / outer whitespace, cap size for regex safety.
+  function normalize(text) {
+    return String(text).replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").trim().slice(0, 20000);
+  }
+
+  // First rule (in priority order) for the language whose pattern matches.
+  function findRule(lang, text) {
+    for (let i = 0; i < RULES.length; i++) {
+      const r = RULES[i];
+      if (r.lang !== lang) continue;
+      const m = r.match.exec(text);
+      if (m) return { rule: r, m: m };
+    }
+    return null;
+  }
+
+  // A specific (non-generic) rule from ANOTHER language, to suggest switching.
+  function findOtherLanguage(lang, text) {
+    for (let i = 0; i < RULES.length; i++) {
+      const r = RULES[i];
+      if (r.lang === lang || r.generic) continue;
+      if (r.match.test(text)) return r.lang;
+    }
+    return null;
+  }
+
+  // Uses the line number in the error to show the matching line of the snippet.
+  function lineHint(lang, text, ctx) {
+    if (!ctx.trim()) return null;
+    const nums = [];
+    let m;
+    const byWord = /\bline\s+(\d+)\b/gi;
+    while ((m = byWord.exec(text))) nums.push(parseInt(m[1], 10));
+    if (!nums.length) {
+      const byFile = /\b[\w.$\-\/\\]+\.(?:jsx?|tsx?|py|java|cpp|cc|cxx|c|hpp|h):(\d+)/gi;
+      while ((m = byFile.exec(text))) nums.push(parseInt(m[1], 10));
+    }
+    if (!nums.length) return null;
+    // Python tracebacks end at the innermost frame; other languages start there.
+    const n = lang === "python" ? nums[nums.length - 1] : nums[0];
+    const src = ctx.split("\n")[n - 1];
+    if (src === undefined || !src.trim()) {
+      return "The error points to line " + n + ", but your snippet has nothing on that line. The snippet may start at a different line than the file.";
+    }
+    return "The error points to line " + n + ". In your snippet that line reads `" + src.trim().replace(/`/g, "'") + "` (assuming the snippet starts at line 1 of the file).";
+  }
+
+  function buildResult(lang, text, ctx) {
+    const found = findRule(lang, text);
+    const hints = [];
+    const lh = lineHint(lang, text, ctx);
+    let res;
+
+    if (found) {
+      const r = found.rule;
+      if (typeof r.hint === "function") {
+        const h = r.hint(found.m, ctx);
+        if (h) hints.push(h);
+      }
+      if (lh) hints.push(lh);
+      res = {
+        known: true, ruleId: r.id, lang: lang, title: r.name, summary: r.summary,
+        what: r.what, causes: r.causes, fix: r.fix, example: r.example, prevent: r.prevent, hints: hints, note: null
+      };
+    } else {
+      if (lh) hints.push(lh);
+      const other = findOtherLanguage(lang, text);
+      res = {
+        known: false, ruleId: null, lang: lang,
+        title: "Unidentified error",
+        summary: "We couldn't identify this error with our current rule set.",
+        what: lang === "other"
+          ? "DEVFIX only has detailed rules for JavaScript, Python, Java and C++. For other languages it can only offer general debugging guidance."
+          : "DEVFIX doesn't have a matching signature for this message in " + LANG_LABELS[lang] + " yet, so it won't guess a diagnosis. The steps below work for almost any error.",
+        causes: [], fix: GENERAL_STEPS, example: null,
+        prevent: "Keep the full error text and stack trace when you search or ask for help, since the details narrow down the cause.",
+        hints: hints,
+        note: other ? "This message looks like a " + LANG_LABELS[other] + " error. Switch the language to " + LANG_LABELS[other] + " and analyze again for a detailed explanation." : null
+      };
+    }
+    return res;
+  }
+
+  // Plain-text versions for the copy buttons.
+  function fixText(r) {
+    let t = r.fix.map(function (s, i) { return (i + 1) + ". " + s.replace(/`/g, ""); }).join("\n");
+    if (r.example) t += "\n\nExample (" + r.example.lang + "):\n" + r.example.after;
+    return t;
+  }
+  function explanationText(r) {
+    const parts = [
+      "DEVFIX: " + r.title + " (" + (r.known ? "known pattern" : "general guidance") + ")",
+      "",
+      r.summary,
+      "",
+      "What happened?\n" + r.what.replace(/`/g, "")
+    ];
+    if (r.causes.length) parts.push("", "Why might it have happened?\n" + r.causes.map(function (c) { return "- " + c.replace(/`/g, ""); }).join("\n"));
+    parts.push("", (r.known ? "Suggested fix:\n" : "General debugging steps:\n") + fixText(r));
+    parts.push("", "How to prevent it:\n" + r.prevent.replace(/`/g, ""));
+    parts.push("", "Rule-based suggestion; validate it against your actual code.");
+    return parts.join("\n");
+  }
+
+  /* ------------------------------------------------------------------
+     Rendering
+     ------------------------------------------------------------------ */
+  function actionButton(label, onClick) {
+    const b = el("button", "btn ghost small", label);
+    b.type = "button";
+    b.addEventListener("click", function () { onClick(b, label); });
+    return b;
+  }
+
+  function render(r) {
+    const root = el("article", "result " + (r.known ? "known" : "general"));
+
+    // Header: classification, title, copy actions
+    const head = el("header", "result-head");
+    const badges = el("div", "badges");
+    badges.appendChild(el("span", "badge " + (r.known ? "known" : "general"), r.known ? "Known pattern" : "General guidance"));
+    badges.appendChild(el("span", "badge plain", LANG_LABELS[r.lang]));
+    if (r.ruleId) badges.appendChild(el("span", "badge plain rule", "rule: " + r.ruleId));
+    head.appendChild(badges);
+    head.appendChild(el("h2", "", r.title));
+    head.appendChild(el("p", "summary", r.summary));
+    const actions = el("div", "head-actions");
+    actions.appendChild(actionButton("Copy explanation", function (b, label) { copyText(explanationText(r), b, label, "Explanation copied"); }));
+    actions.appendChild(actionButton(r.known ? "Copy fix" : "Copy steps", function (b, label) { copyText(fixText(r), b, label, r.known ? "Fix copied" : "Steps copied"); }));
+    head.appendChild(actions);
+    root.appendChild(head);
+
+    if (r.note) root.appendChild(section("Possible language mismatch", "", para(r.note)));
+    root.appendChild(section("What happened?", "", para(r.what)));
+    if (r.hints.length) {
+      const wrap = el("div");
+      r.hints.forEach(function (h) { wrap.appendChild(para(h)); });
+      root.appendChild(section("Clues from your input", "clues", wrap));
+    }
+    if (r.causes.length) root.appendChild(section("Why might it have happened?", "", list("ul", r.causes)));
+
+    // Fix: ordered steps, plus before/after example when available
+    const fixSec = section(r.known ? "Suggested fix" : "General debugging steps", "", list("ol", r.fix));
+    if (r.example) {
+      if (r.example.before) fixSec.appendChild(codeBlock("Before (" + r.example.lang + ", illustrative)", r.example.before, "before"));
+      fixSec.appendChild(codeBlock((r.example.before ? "After" : "Example") + " (" + r.example.lang + ", illustrative)", r.example.after, "after"));
+      fixSec.appendChild(para("This example shows the idea. Adjust it to match your actual code; it is not a drop-in fix for your program.", "note"));
+    }
+    root.appendChild(fixSec);
+    root.appendChild(section("How to prevent this error", "", para(r.prevent)));
+    root.appendChild(el("p", "disclaimer", r.known
+      ? "Rule-based suggestion. The exact cause depends on your code, so confirm it against the line the error points to."
+      : "General guidance, not a diagnosis. Inspect the surrounding code to find the real cause."));
+
+    els.results.replaceChildren(root);
+    els.results.classList.remove("is-stale");
+    els.stale.hidden = true;
+    state.hasResult = true;
+  }
+
+  function markStale() {
+    if (!state.hasResult) return;
+    els.results.classList.add("is-stale");
+    const art = els.results.firstElementChild;
+    if (art) art.classList.add("is-stale");
+    els.stale.hidden = false;
+  }
+
+  /* ------------------------------------------------------------------
+     Actions
+     ------------------------------------------------------------------ */
+  function showFieldError(msg) {
+    els.errMsg.textContent = msg;
+    els.errMsg.hidden = false;
+    els.error.setAttribute("aria-invalid", "true");
+    els.errMsg.setAttribute("role", "alert");
+  }
+  function clearFieldError() {
+    els.errMsg.hidden = true;
+    els.errMsg.textContent = "";
+    els.error.removeAttribute("aria-invalid");
+  }
+  function toast(msg, bad) {
+    els.toast.textContent = msg;
+    els.toast.className = "show" + (bad ? " bad" : "");
+    clearTimeout(state.toastTimer);
+    state.toastTimer = setTimeout(function () { els.toast.className = ""; }, 2200);
+  }
+  function setBusy(b) {
+    state.busy = b;
+    els.analyze.disabled = b;
+    els.analyzeLabel.textContent = b ? "Analyzing…" : "Analyze error";
+  }
+
+  function analyzeError() {
+    if (state.busy) return;
+    const text = normalize(els.error.value);
+    if (!text) {
+      showFieldError("Paste an error message first, or pick a sample below.");
+      els.error.focus();
+      return;
+    }
+    clearFieldError();
+    const lang = els.lang.value;
+    const ctx = els.ctx.value.replace(/\r\n?/g, "\n").replace(/\s+$/, "").slice(0, 20000);
+
+    setBusy(true);
+    // Short transition for feedback only; the analysis itself is instant.
+    setTimeout(function () {
+      let result;
+      try {
+        result = buildResult(lang, text, ctx);
+      } catch (e) {
+        result = buildResult("other", "", "");
+        toast("Something went wrong while analyzing. Showing general guidance.", true);
+      }
+      render(result);
+      setBusy(false);
+      els.results.scrollIntoView({ behavior: (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) ? "auto" : "smooth", block: "start" });
+      els.results.focus({ preventScroll: true });
+    }, 180);
+  }
+
+  function clearAll() {
+    els.error.value = "";
+    els.ctx.value = "";
+    els.ctxDetails.open = false;
+    clearFieldError();
+    els.results.replaceChildren();
+    els.results.classList.remove("is-stale");
+    els.stale.hidden = true;
+    state.hasResult = false;
+    els.error.focus();
+  }
+
+  function loadSample(s) {
+    els.lang.value = s.lang;
+    els.error.value = s.error;
+    els.ctx.value = s.ctx || "";
+    els.ctxDetails.open = !!s.ctx;
+    clearFieldError();
+    markStale();
+    toast("Sample loaded. Select Analyze error to run it.");
+    els.analyze.focus();
+  }
+
+  /* Clipboard: modern API first, execCommand fallback */
+  function legacyCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    if (!ok) throw new Error("copy failed");
+  }
+  function copyText(text, btn, label, doneMsg) {
+    function done() {
+      toast(doneMsg);
+      btn.textContent = "Copied";
+      setTimeout(function () { btn.textContent = label; }, 1500);
+    }
+    function fail() { toast("Couldn't copy automatically. Select the text and copy it manually.", true); }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, function () {
+        try { legacyCopy(text); done(); } catch (e) { fail(); }
+      });
+    } else {
+      try { legacyCopy(text); done(); } catch (e) { fail(); }
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     Wiring
+     ------------------------------------------------------------------ */
+  SAMPLES.forEach(function (s) {
+    const b = el("button", "chip", s.label);
+    b.type = "button";
+    b.addEventListener("click", function () { loadSample(s); });
+    els.samples.appendChild(b);
+  });
+
+  els.analyze.addEventListener("click", analyzeError);
+  els.clear.addEventListener("click", clearAll);
+  els.error.addEventListener("input", function () { if (els.error.value.trim()) clearFieldError(); markStale(); });
+  els.ctx.addEventListener("input", markStale);
+  els.lang.addEventListener("change", markStale);
+  [els.error, els.ctx].forEach(function (t) {
+    t.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); analyzeError(); }
+    });
+  });
+})();
+</script>
+</body>
+</html>

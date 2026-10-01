@@ -1,0 +1,37 @@
+name: DEVFIX browser tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  browser-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Serve the app
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/devfix-http.log 2>&1 &
+          echo $! > /tmp/devfix-http.pid
+
+      - name: Run browser tests
+        env:
+          DEVFIX_URL: http://127.0.0.1:4173/index.html
+        run: node --test tests/devfix.test.cjs
+
+      - name: Stop the app server
+        if: always()
+        run: if [ -f /tmp/devfix-http.pid ]; then kill "$(cat /tmp/devfix-http.pid)" || true; fi

@@ -23,7 +23,18 @@ test('DEVFIX recognizes its built-in error examples and validates empty input', 
     for (const [label, expectedRule] of examples) {
       await page.getByRole('button', { name: label, exact: true }).click();
       await page.getByRole('button', { name: 'Analyze error' }).click();
-      await page.locator(`#results .badge.rule`).waitFor();
+      // The app renders results after a short delay, so wait for this
+      // example's badge instead of reading the previous result's badge.
+      await page
+        .waitForFunction(
+          expected => {
+            const badge = document.querySelector('#results .badge.rule');
+            return badge && badge.textContent.trim() === expected;
+          },
+          `rule: ${expectedRule}`,
+          { timeout: 5000 }
+        )
+        .catch(() => {});
       assert.equal(
         (await page.locator('#results .badge.rule').textContent()).trim(),
         `rule: ${expectedRule}`,

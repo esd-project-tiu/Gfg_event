@@ -194,6 +194,56 @@ code {
 .clues { background: rgba(16,185,129,.05); }
 .disclaimer { padding: 14px 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; background: var(--surface-2); }
 
+/* Fix Lens */
+.lens { margin-top: 16px; border: 1px solid var(--line-2); border-top: 2px solid var(--accent); border-radius: 10px; background: var(--code-bg); overflow: hidden; }
+.lens-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.lens-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: .95rem; }
+.lens-icon { display: inline-flex; color: var(--accent-2); }
+.lens-head .btn { margin-left: auto; }
+.tabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab {
+  font: inherit; font-size: .9rem; color: var(--muted); background: none; border: 0;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 14px;
+  cursor: pointer; white-space: nowrap; transition: color .15s;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--accent-2); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-panel[hidden] { display: none; }
+.panel-cap, .panel-legend { margin: 0; padding: 10px 14px 0; color: var(--muted); font-size: .82rem; }
+.panel-legend { padding: 0 14px 12px; }
+.lens pre { margin: 0; padding: 10px 0 12px; overflow-x: auto; font-family: var(--mono); font-size: .86rem; line-height: 1.6; tab-size: 2; }
+.lens pre code { display: block; width: max-content; min-width: 100%; background: none; border: 0; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.ln { display: block; position: relative; min-height: 1.6em; padding: 0 14px 0 34px; white-space: pre; }
+.ln.changed::before { position: absolute; left: 14px; font-weight: 700; }
+.tab-panel.before .ln.changed { background: rgba(240,112,122,.11); }
+.tab-panel.before .ln.changed::before { content: "\2212"; color: var(--bad); }
+.tab-panel.after .ln.changed { background: rgba(16,185,129,.13); }
+.tab-panel.after .ln.changed::before { content: "+"; color: var(--accent-2); }
+.change-body { padding: 14px 14px 4px; }
+.change-body p { margin: 0 0 10px; max-width: 68ch; }
+.lens-note { margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; background: var(--surface-2); }
+
+/* Debugging Detective */
+.detective { border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface-2); }
+.detective > summary { cursor: pointer; padding: 11px 14px; font-weight: 600; border-radius: 10px; }
+.detective > summary .sub { display: block; color: var(--muted); font-weight: 400; font-size: .85rem; margin-top: 2px; }
+.detective[open] > summary { border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; }
+.det-body { padding: 14px; }
+fieldset.dq { border: 0; margin: 0 0 14px; padding: 0; min-width: 0; }
+.dq legend { font-weight: 600; font-size: .92rem; padding: 0; margin-bottom: 8px; }
+.opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.opt { position: relative; display: inline-block; }
+.opt input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.opt span { display: inline-block; font-size: .85rem; border: 1px solid var(--line-2); background: var(--surface); border-radius: 999px; padding: 5px 13px; transition: border-color .15s, background-color .15s; }
+.opt input:hover + span { border-color: #46505a; }
+.opt input:checked + span { border-color: var(--accent); background: rgba(16,185,129,.12); color: var(--accent-2); }
+.opt input:focus-visible + span { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.guidance:not(:empty) { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.guidance h4 { margin: 0 0 8px; font-size: .95rem; }
+.guidance ul { margin: 0; padding-left: 22px; max-width: 70ch; }
+.guidance li { margin-bottom: 8px; }
+.guidance li::marker { color: var(--accent); }
+
 /* Footer, toast */
 footer { margin-top: auto; border-top: 1px solid var(--line); padding: 22px 0 28px; color: var(--muted); font-size: .88rem; }
 footer strong { color: var(--text); }
@@ -216,6 +266,7 @@ footer strong { color: var(--text); }
   .kbd-hint { text-align: left; }
   .result-head, .result-sec { padding-left: 16px; padding-right: 16px; }
   .disclaimer { padding-left: 16px; padding-right: 16px; }
+  .lens-head .btn { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
@@ -321,8 +372,13 @@ footer strong { color: var(--text); }
   /* ------------------------------------------------------------------
      RULES
      Each rule: id, lang, match (regex on the error text), name, summary,
-     what, causes[], fix[], example {lang, before, after}, prevent,
-     hint(match, context) -> string | null.
+     what, causes[], fix[], prevent, hint(match, context) -> string | null.
+     Optional Fix Lens properties (all three required to show the lens):
+       beforeCode, afterCode  illustrative problematic / corrected code
+       changeExplanation      why the change addresses the error
+     Rules without them keep the plain `example {lang, before, after}`.
+     Optional Debugging Detective property:
+       detective {questions[<=2] {id, text, options[] {id, label, tip}}}
      Rules are checked top to bottom per language, so MORE SPECIFIC
      rules must come BEFORE generic ones. `generic: true` rules are never
      used for cross-language suggestions.
@@ -370,12 +426,56 @@ footer strong { color: var(--text); }
         "Trace back to where it should have been set, and fix that source.",
         "If a missing value is legitimate, guard the access with a check or optional chaining (`?.`)."
       ],
-      example: {
-        lang: "JavaScript",
-        before: "const user = users.find(u => u.id === id);\nconsole.log(user.name);",
-        after: "const user = users.find(u => u.id === id);\nif (user && user.name) {\n  console.log(user.name);\n}\n\n// or, with optional chaining\nconsole.log(user?.name);"
-      },
+      beforeCode: "const user = users.find(u => u.id === id);\nconsole.log(user.name);",
+      afterCode: "const user = users.find(u => u.id === id);\nif (user && user.name) {\n  console.log(user.name);\n}\n\n// or, with optional chaining\nconsole.log(user?.name);",
+      changeExplanation: "The Before code reads `user.name` without checking that `user` exists. If `find()` matches nothing, `user` is `undefined` and reading `.name` throws.\n\nThe After code checks `user` first (or uses `?.`, which stops and returns `undefined` instead of throwing). That avoids this specific crash, but you still need to decide what should happen when no user is found.",
       prevent: "Initialize variables with sensible defaults, and use optional chaining or guard checks wherever data can be missing.",
+      detective: {
+        "questions": [
+          {
+            "id": "source",
+            "text": "Where does the undefined value come from?",
+            "options": [
+              {
+                "id": "declared",
+                "label": "A variable I declared",
+                "tip": "Check whether it is assigned on every path before this line. A declaration without a value, or an assignment inside an `if` that did not run, would leave it `undefined`."
+              },
+              {
+                "id": "function",
+                "label": "A function result or find()",
+                "tip": "Check that the function has a `return` on every path, and whether `find()` can match nothing for the input you used. Logging the result right after the call would show it."
+              },
+              {
+                "id": "async",
+                "label": "API data, props or state",
+                "tip": "The value may not have arrived yet when this code runs. Compare the order of events, and check that the field name matches the real response."
+              },
+              {
+                "id": "unsure",
+                "label": "Not sure",
+                "tip": "Log the value one step earlier with `console.log` and keep moving backward until you find where it first becomes `undefined`."
+              }
+            ]
+          },
+          {
+            "id": "when",
+            "text": "When does it fail?",
+            "options": [
+              {
+                "id": "always",
+                "label": "Every time",
+                "tip": "Consistent failures often come from a wrong name, a missing assignment or a wrong path in the code. Check the exact property and variable names for typos."
+              },
+              {
+                "id": "sometimes",
+                "label": "Only sometimes",
+                "tip": "Intermittent failures often depend on the input data or on timing. Compare an input that works with one that fails, and check loading order."
+              }
+            ]
+          }
+        ]
+      },
       hint: function (m, ctx) {
         const prop = m[1];
         if (!prop) return null;
@@ -404,12 +504,56 @@ footer strong { color: var(--text); }
         "Run the script after the DOM is ready, for example by placing the `<script>` at the end of `<body>` or using the `defer` attribute.",
         "Check the value for `null` before using it."
       ],
-      example: {
-        lang: "JavaScript",
-        before: "const btn = document.querySelector('#save');\nbtn.addEventListener('click', save);",
-        after: "const btn = document.querySelector('#save');\nif (btn) {\n  btn.addEventListener('click', save);\n}"
-      },
+      beforeCode: "const btn = document.querySelector('#save');\nbtn.addEventListener('click', save);",
+      afterCode: "const btn = document.querySelector('#save');\nif (btn) {\n  btn.addEventListener('click', save);\n}",
+      changeExplanation: "The Before code assumes `querySelector` always finds the element. If the selector matches nothing it returns `null`, and reading `addEventListener` from `null` throws.\n\nThe After code only uses `btn` when it exists. If the button should always be there, a `null` usually means a wrong selector or a script that runs too early, and the guard would hide that rather than fix it.",
       prevent: "Load scripts with `defer`, and check results of DOM lookups before using them.",
+      detective: {
+        "questions": [
+          {
+            "id": "source",
+            "text": "What produced the null?",
+            "options": [
+              {
+                "id": "dom",
+                "label": "querySelector or getElementById",
+                "tip": "Check that the selector matches an element in your HTML exactly (`#` for ids, `.` for classes), and that the element is not created later by JavaScript."
+              },
+              {
+                "id": "data",
+                "label": "JSON or API data",
+                "tip": "Log the raw value before using it. An API can legitimately return `null` for missing fields, so decide how that case should be handled."
+              },
+              {
+                "id": "assigned",
+                "label": "A variable I set to null",
+                "tip": "Look for where it is reassigned. It may be used before the assignment that gives it a real value."
+              }
+            ]
+          },
+          {
+            "id": "timing",
+            "text": "Where is your script loaded?",
+            "options": [
+              {
+                "id": "head",
+                "label": "In the head, no defer",
+                "tip": "The script may run before the page elements exist. Moving it to the end of `<body>` or adding `defer` is worth trying."
+              },
+              {
+                "id": "late",
+                "label": "End of body or with defer",
+                "tip": "Timing is less likely to be the cause here, so a wrong selector or an element added later by JavaScript is worth checking first."
+              },
+              {
+                "id": "unsure",
+                "label": "Not sure",
+                "tip": "Look at your `<script>` tag in the HTML: its position and whether it has `defer` change when it runs."
+              }
+            ]
+          }
+        ]
+      },
       hint: null
     },
     {
@@ -428,11 +572,9 @@ footer strong { color: var(--text); }
         "Check the URL, HTTP status and `Content-Type` header before calling `.json()`.",
         "Fix the endpoint or server so it returns JSON."
       ],
-      example: {
-        lang: "JavaScript",
-        before: "const data = await fetch('/api/users').then(r => r.json());",
-        after: "const res = await fetch('/api/users');\nif (!res.ok) {\n  throw new Error('Request failed: ' + res.status);\n}\nconst data = await res.json();"
-      },
+      beforeCode: "const data = await fetch('/api/users').then(r => r.json());",
+      afterCode: "const res = await fetch('/api/users');\nif (!res.ok) {\n  throw new Error('Request failed: ' + res.status);\n}\nconst data = await res.json();",
+      changeExplanation: "The Before code parses whatever came back as JSON, even if the server returned an HTML error page.\n\nThe After code checks `res.ok` first, so a failed request produces a clear error with the status code instead of a confusing parse error. It does not repair the failing request itself; the URL or server still needs checking.",
       prevent: "Always check `response.ok` before parsing the body.",
       hint: null
     },
@@ -451,11 +593,9 @@ footer strong { color: var(--text); }
         "Move the declaration above its first use.",
         "If the use is inside a function, make sure the function is not called before the declaration runs."
       ],
-      example: {
-        lang: "JavaScript",
-        before: "console.log(total);\nconst total = 10;",
-        after: "const total = 10;\nconsole.log(total);"
-      },
+      beforeCode: "console.log(total);\nconst total = 10;",
+      afterCode: "const total = 10;\nconsole.log(total);",
+      changeExplanation: "The Before code uses `total` on a line that runs before its `const` declaration, and `let` or `const` variables cannot be touched until the declaration has executed.\n\nThe After code declares `total` first and uses it afterwards.",
       prevent: "Declare variables at the top of their scope, before anything uses them.",
       hint: null
     },
@@ -477,11 +617,9 @@ footer strong { color: var(--text); }
         "Declare the variable before using it, in a scope that the failing line can see.",
         "Add the missing `import`, or fix the script load order."
       ],
-      example: {
-        lang: "JavaScript",
-        before: "console.log(total);",
-        after: "let total = 0;\nconsole.log(total);"
-      },
+      beforeCode: "console.log(total);",
+      afterCode: "let total = 0;\nconsole.log(total);",
+      changeExplanation: "The Before code uses `total`, but no declaration of it exists in scope, so JavaScript cannot resolve the name.\n\nThe After code declares it with `let` before use. If the name should come from another file, the real fix is an `import` or a definition in a scope the line can see.",
       prevent: "Use a linter such as ESLint (`no-undef`) to catch undeclared names while you type.",
       hint: function (m, ctx) {
         const name = m[1];
@@ -507,11 +645,9 @@ footer strong { color: var(--text); }
         "Check the spelling of the method and what type of value you really have.",
         "Check how it is imported or defined."
       ],
-      example: {
-        lang: "JavaScript",
-        before: "const items = { a: 1 };\nitems.map(x => x);",
-        after: "const items = [1, 2, 3];\nitems.map(x => x * 2);"
-      },
+      beforeCode: "const items = { a: 1 };\nitems.map(x => x);",
+      afterCode: "const items = [1, 2, 3];\nitems.map(x => x * 2);",
+      changeExplanation: "The Before code calls `.map()` on a plain object, and objects do not have that method.\n\nThe After code uses an array, which does. The underlying fix is making sure the value has the type that the method belongs to.",
       prevent: "Check types with `typeof` or `Array.isArray()` when values come from outside your code.",
       hint: function (m) {
         return m[1] ? "The code tried to call `" + m[1] + "`, which is not a function at that point." : null;
@@ -534,11 +670,9 @@ footer strong { color: var(--text); }
         "Add a base case that stops the recursion, and make sure each call moves toward it.",
         "For very deep problems, switch to a loop."
       ],
-      example: {
-        lang: "JavaScript",
-        before: "function countDown(n) {\n  console.log(n);\n  countDown(n - 1);\n}",
-        after: "function countDown(n) {\n  if (n < 0) return; // base case\n  console.log(n);\n  countDown(n - 1);\n}"
-      },
+      beforeCode: "function countDown(n) {\n  console.log(n);\n  countDown(n - 1);\n}",
+      afterCode: "function countDown(n) {\n  if (n < 0) return; // base case\n  console.log(n);\n  countDown(n - 1);\n}",
+      changeExplanation: "The Before code calls itself forever because nothing tells it to stop, so the call stack fills up.\n\nThe After code adds a base case (`n < 0`) that ends the recursion, and each call moves closer to it.",
       prevent: "Write the stopping condition of a recursive function first.",
       hint: null
     },
@@ -560,11 +694,9 @@ footer strong { color: var(--text); }
         "Check that every `(`, `[`, `{` and quote is closed.",
         "Use an editor with bracket matching or run a linter to spot the mismatch."
       ],
-      example: {
-        lang: "JavaScript",
-        before: "function greet(name {\n  return 'Hi ' + name;\n}",
-        after: "function greet(name) {\n  return 'Hi ' + name;\n}"
-      },
+      beforeCode: "function greet(name {\n  return 'Hi ' + name;\n}",
+      afterCode: "function greet(name) {\n  return 'Hi ' + name;\n}",
+      changeExplanation: "The Before code is missing the closing `)` of the parameter list, so the parser cannot read the function header.\n\nThe After code closes the parenthesis. Real syntax errors vary, so use this as a pattern for the kind of mismatch to look for.",
       prevent: "Format code automatically with Prettier so mismatched brackets stand out.",
       hint: null
     },
@@ -587,11 +719,9 @@ footer strong { color: var(--text); }
         "Convert tabs to spaces in your editor.",
         "Check the reported line and the one above it."
       ],
-      example: {
-        lang: "Python",
-        before: "def greet(name):\nprint('Hi ' + name)",
-        after: "def greet(name):\n    print('Hi ' + name)"
-      },
+      beforeCode: "def greet(name):\nprint('Hi ' + name)",
+      afterCode: "def greet(name):\n    print('Hi ' + name)",
+      changeExplanation: "The Before code has an unindented line after `def`, so Python cannot tell it belongs to the function.\n\nThe After code indents the body by four spaces, which is how Python marks a block.",
       prevent: "Turn on \"show whitespace\" in your editor and always indent with spaces.",
       hint: null
     },
@@ -640,11 +770,9 @@ footer strong { color: var(--text); }
         "Check the denominator before dividing, and decide what should happen when it is 0.",
         "Find out why the value is 0 in the first place."
       ],
-      example: {
-        lang: "Python",
-        before: "average = total / count",
-        after: "if count != 0:\n    average = total / count\nelse:\n    average = 0  # choose what makes sense for your program"
-      },
+      beforeCode: "average = total / count",
+      afterCode: "if count != 0:\n    average = total / count\nelse:\n    average = 0  # choose what makes sense for your program",
+      changeExplanation: "The Before code divides without checking the denominator, so `count` being 0 raises the error.\n\nThe After code tests `count` first and chooses a fallback. The fallback value of 0 is only a placeholder; the right behavior depends on your program.",
       prevent: "Validate inputs and guard every division whose denominator can reach 0.",
       hint: function (m, ctx) {
         if (!ctx.trim()) return null;
@@ -669,11 +797,9 @@ footer strong { color: var(--text); }
         "Check that the function you called actually returns the value you expect.",
         "Handle the case where a lookup finds nothing."
       ],
-      example: {
-        lang: "Python",
-        before: "def find_user():\n    print('searching')\n\nuser = find_user()\nprint(user.name)",
-        after: "class User:\n    def __init__(self, name):\n        self.name = name\n\ndef find_user():\n    return User('Asha')\n\nuser = find_user()\nif user is not None:\n    print(user.name)"
-      },
+      beforeCode: "def find_user():\n    print('searching')\n\nuser = find_user()\nprint(user.name)",
+      afterCode: "class User:\n    def __init__(self, name):\n        self.name = name\n\ndef find_user():\n    return User('Asha')\n\nuser = find_user()\nif user is not None:\n    print(user.name)",
+      changeExplanation: "In the Before code `find_user()` only prints and returns nothing, so `user` is `None` and `.name` fails.\n\nIn the After code the function returns a `User` object, and the caller checks for `None` before using it. The key change is that the function now returns the value the caller expects.",
       prevent: "Make functions return a value on every path, and check for `None` where a result is optional.",
       hint: null
     },
@@ -694,11 +820,9 @@ footer strong { color: var(--text); }
         "Check the spelling and the library's documentation.",
         "Make sure none of your file names clash with a library name."
       ],
-      example: {
-        lang: "Python",
-        before: "name = 'devfix'\nname.append('!')",
-        after: "name = 'devfix'\nname = name + '!'  # strings have no append(); build a new string"
-      },
+      beforeCode: "name = 'devfix'\nname.append('!')",
+      afterCode: "name = 'devfix'\nname = name + '!'  # strings have no append(); build a new string",
+      changeExplanation: "The Before code calls `append()` on a string, but strings have no such method (and they cannot be changed in place).\n\nThe After code builds a new string with `+` instead.",
       prevent: "Use an editor with autocomplete and type hints so wrong attributes are flagged early.",
       hint: function (m) {
         const a = /has no attribute\s+['"]([^'"]+)['"]/i.exec(m.input);
@@ -721,11 +845,9 @@ footer strong { color: var(--text); }
         "Convert one side so both match, for example with `str()`, `int()` or `float()`.",
         "Use an f-string to build text from mixed values."
       ],
-      example: {
-        lang: "Python",
-        before: "age = 21\nprint('Age: ' + age)",
-        after: "age = 21\nprint('Age: ' + str(age))\n# or\nprint(f'Age: {age}')"
-      },
+      beforeCode: "age = 21\nprint('Age: ' + age)",
+      afterCode: "age = 21\nprint('Age: ' + str(age))\n# or\nprint(f'Age: {age}')",
+      changeExplanation: "The Before code joins a string and an integer with `+`, which Python does not allow.\n\nThe After code converts the number with `str()`, or builds the text with an f-string.",
       prevent: "Convert user input right after reading it, and keep variable types consistent.",
       hint: null
     },
@@ -745,11 +867,9 @@ footer strong { color: var(--text); }
         "Check parameter names and their order.",
         "For methods, make sure the first parameter is `self`."
       ],
-      example: {
-        lang: "Python",
-        before: "def add(a, b):\n    return a + b\n\nadd(1)",
-        after: "def add(a, b):\n    return a + b\n\nadd(1, 2)"
-      },
+      beforeCode: "def add(a, b):\n    return a + b\n\nadd(1)",
+      afterCode: "def add(a, b):\n    return a + b\n\nadd(1, 2)",
+      changeExplanation: "The Before code calls `add` with one argument, but the function needs two.\n\nThe After code passes both. For methods, remember that `self` also counts in the number reported in the message.",
       prevent: "Use default values and type hints so call mistakes are easy to spot.",
       hint: null
     },
@@ -768,11 +888,9 @@ footer strong { color: var(--text); }
         "Look at the name before the `(` and check what it currently holds.",
         "Rename variables that clash with built-ins such as `list`, `sum`, `max` or `str`."
       ],
-      example: {
-        lang: "Python",
-        before: "sum = 10\nprint(sum([1, 2, 3]))",
-        after: "total = 10\nprint(sum([1, 2, 3]))"
-      },
+      beforeCode: "sum = 10\nprint(sum([1, 2, 3]))",
+      afterCode: "total = 10\nprint(sum([1, 2, 3]))",
+      changeExplanation: "The Before code assigns `sum = 10`, which replaces the built-in `sum` function. The next line then tries to call the number 10.\n\nThe After code renames the variable so the built-in keeps working.",
       prevent: "Never name variables after built-in functions.",
       hint: null
     },
@@ -791,11 +909,9 @@ footer strong { color: var(--text); }
         "Print the value and `type(value)` before the failing line.",
         "Trace back to where it was assigned and check that it holds the container you expect."
       ],
-      example: {
-        lang: "Python",
-        before: "result = [3, 1, 2].sort()\nprint(result[0])",
-        after: "numbers = [3, 1, 2]\nnumbers.sort()  # sorts in place and returns None\nprint(numbers[0])"
-      },
+      beforeCode: "result = [3, 1, 2].sort()\nprint(result[0])",
+      afterCode: "numbers = [3, 1, 2]\nnumbers.sort()  # sorts in place and returns None\nprint(numbers[0])",
+      changeExplanation: "`list.sort()` sorts in place and returns `None`. The Before code stores that `None` in `result` and then indexes it.\n\nThe After code sorts the list itself and indexes the list.",
       prevent: "Remember that in-place methods return `None`; use `sorted()` if you need a new list.",
       hint: null
     },
@@ -817,6 +933,52 @@ footer strong { color: var(--text); }
       ],
       example: null,
       prevent: "Validate input types at the boundaries of your program.",
+      detective: {
+        "questions": [
+          {
+            "id": "op",
+            "text": "What kind of operation fails?",
+            "options": [
+              {
+                "id": "combine",
+                "label": "Combining values (+, -, *)",
+                "tip": "Print `type(x)` for each operand. Text from `input()` is always a string until you convert it."
+              },
+              {
+                "id": "call",
+                "label": "Calling a function",
+                "tip": "Compare the number and types of arguments with the function definition, including `self` for methods."
+              },
+              {
+                "id": "index",
+                "label": "Indexing or looping",
+                "tip": "Check that the value is a list, dict or string and not `None` or a number. Print it right before the failing line."
+              },
+              {
+                "id": "unsure",
+                "label": "Not sure",
+                "tip": "Read the full message. After `TypeError:` Python usually names the types involved."
+              }
+            ]
+          },
+          {
+            "id": "none",
+            "text": "Could a value be None?",
+            "options": [
+              {
+                "id": "yes",
+                "label": "Yes, a function may return nothing",
+                "tip": "Check that the function has a `return` on every path. A function without one gives `None`."
+              },
+              {
+                "id": "no",
+                "label": "No or not sure",
+                "tip": "Print `type(...)` for every value on the failing line to see which one is not what you expect."
+              }
+            ]
+          }
+        ]
+      },
       hint: null
     },
     {
@@ -836,11 +998,9 @@ footer strong { color: var(--text); }
         "Assign the variable before the line that uses it.",
         "Add the missing `import`, or move the definition so it is visible where it is used."
       ],
-      example: {
-        lang: "Python",
-        before: "print(total)",
-        after: "total = 0\nprint(total)"
-      },
+      beforeCode: "print(total)",
+      afterCode: "total = 0\nprint(total)",
+      changeExplanation: "The Before code prints `total` before anything has defined it.\n\nThe After code assigns `total` first, so the name exists when it is used.",
       prevent: "Initialize variables early, and use an editor or linter that highlights undefined names.",
       hint: function (m, ctx) {
         const n = /name\s+'([^']+)'/i.exec(m.input);
@@ -866,11 +1026,9 @@ footer strong { color: var(--text); }
         "Use `d.get(key, default)` when a missing key is acceptable.",
         "Check with `if key in d:` before reading."
       ],
-      example: {
-        lang: "Python",
-        before: "ages = {'asha': 21}\nprint(ages['ravi'])",
-        after: "ages = {'asha': 21}\nprint(ages.get('ravi', 'unknown'))\n\n# or check first\nif 'ravi' in ages:\n    print(ages['ravi'])"
-      },
+      beforeCode: "ages = {'asha': 21}\nprint(ages['ravi'])",
+      afterCode: "ages = {'asha': 21}\nprint(ages.get('ravi', 'unknown'))\n\n# or check first\nif 'ravi' in ages:\n    print(ages['ravi'])",
+      changeExplanation: "The Before code reads a key that is not in the dictionary.\n\nThe After code either uses `.get()` with a default value or checks `in` before reading. Which one suits you depends on whether a missing key is normal or a bug.",
       prevent: "Use `.get()` for optional data, and keep key names in constants to avoid typos.",
       hint: function (m) {
         const k = /KeyError:\s*(.+)/.exec(m.input);
@@ -893,11 +1051,9 @@ footer strong { color: var(--text); }
         "Loop with `for item in items:` instead of managing indexes by hand.",
         "Check the length before indexing."
       ],
-      example: {
-        lang: "Python",
-        before: "items = [10, 20, 30]\nprint(items[3])",
-        after: "items = [10, 20, 30]\nif 3 < len(items):\n    print(items[3])\nelse:\n    print('No item at index 3')"
-      },
+      beforeCode: "items = [10, 20, 30]\nprint(items[3])",
+      afterCode: "items = [10, 20, 30]\nif 3 < len(items):\n    print(items[3])\nelse:\n    print('No item at index 3')",
+      changeExplanation: "The Before code asks for position 3 in a list that only has positions 0 to 2.\n\nThe After code checks the list length before indexing. If the index itself is wrong, the better fix is correcting the logic that produced it.",
       prevent: "Prefer iterating directly over a list, and check the length of data you did not create.",
       hint: null
     },
@@ -919,11 +1075,9 @@ footer strong { color: var(--text); }
         "Check that every bracket and quote is closed and every block header ends with `:`.",
         "Compare against a working example of the same statement."
       ],
-      example: {
-        lang: "Python",
-        before: "if score > 50\n    print('pass')",
-        after: "if score > 50:\n    print('pass')"
-      },
+      beforeCode: "if score > 50\n    print('pass')",
+      afterCode: "if score > 50:\n    print('pass')",
+      changeExplanation: "The Before code is missing the colon at the end of the `if` line, so Python cannot parse the statement.\n\nThe After code adds the colon. Other syntax errors differ, but block headers ending with `:` are a common thing to check.",
       prevent: "Use an editor with syntax highlighting; unclosed quotes and brackets show up immediately.",
       hint: null
     },
@@ -947,12 +1101,56 @@ footer strong { color: var(--text); }
         "Trace back to where it should have been assigned, and fix that source.",
         "Add a null check only where null is a legitimate value."
       ],
-      example: {
-        lang: "Java",
-        before: "String name = null;\nSystem.out.println(name.length());",
-        after: "String name = null;\nif (name != null) {\n    System.out.println(name.length());\n}"
-      },
+      beforeCode: "String name = null;\nSystem.out.println(name.length());",
+      afterCode: "String name = null;\nif (name != null) {\n    System.out.println(name.length());\n}",
+      changeExplanation: "The Before code calls `length()` on a variable that holds `null`.\n\nThe After code checks for `null` first, which avoids the crash. If `name` should never be null, the better fix is finding where it should have been assigned.",
       prevent: "Initialize fields, avoid returning null (use empty collections or `Optional`), and check values from external sources.",
+      detective: {
+        "questions": [
+          {
+            "id": "source",
+            "text": "Which kind of value might be null?",
+            "options": [
+              {
+                "id": "field",
+                "label": "A field I never set",
+                "tip": "Check the constructor and setup methods. Object fields default to `null`, so confirm the field is assigned before this line runs."
+              },
+              {
+                "id": "return",
+                "label": "A method's return value",
+                "tip": "Check whether that method can return `null`, for example when a search finds nothing, by reading its code or documentation."
+              },
+              {
+                "id": "map",
+                "label": "A Map or collection lookup",
+                "tip": "`Map.get` returns `null` when the key is missing. Check the key's spelling, case and type, and that the entry was added before the lookup."
+              },
+              {
+                "id": "unsure",
+                "label": "Not sure",
+                "tip": "Newer Java versions often name the null expression in the message (look for `because ... is null`). Otherwise print or inspect each variable on the failing line."
+              }
+            ]
+          },
+          {
+            "id": "when",
+            "text": "How often does it fail?",
+            "options": [
+              {
+                "id": "always",
+                "label": "Every run",
+                "tip": "A consistent failure suggests a value is never set on the normal path. Step through the method from the start and check each assignment."
+              },
+              {
+                "id": "some",
+                "label": "Only with some inputs",
+                "tip": "Compare a working input with a failing one. Optional or missing data is a common reason a value is null for some cases only."
+              }
+            ]
+          }
+        ]
+      },
       hint: function (m) {
         const b = /because\s+"([^"]+)"\s+is null/i.exec(m.input);
         if (b) return "The message says " + "`" + b[1].replace(/`/g, "'") + "` is null. That is the exact expression to investigate.";
@@ -976,11 +1174,9 @@ footer strong { color: var(--text); }
         "Loop with `i < arr.length`, or use an enhanced `for` loop.",
         "Check the array length before indexing data you did not create."
       ],
-      example: {
-        lang: "Java",
-        before: "int[] nums = {1, 2, 3};\nfor (int i = 0; i <= nums.length; i++) {\n    System.out.println(nums[i]);\n}",
-        after: "int[] nums = {1, 2, 3};\nfor (int i = 0; i < nums.length; i++) {\n    System.out.println(nums[i]);\n}"
-      },
+      beforeCode: "int[] nums = {1, 2, 3};\nfor (int i = 0; i <= nums.length; i++) {\n    System.out.println(nums[i]);\n}",
+      afterCode: "int[] nums = {1, 2, 3};\nfor (int i = 0; i < nums.length; i++) {\n    System.out.println(nums[i]);\n}",
+      changeExplanation: "The Before loop uses `i <= nums.length`, so its last iteration reads index 3 in an array whose valid indexes are 0 to 2.\n\nThe After loop uses `i < nums.length`, which stops at the last valid index.",
       prevent: "Prefer enhanced `for` loops, and always use `< length`, not `<= length`.",
       hint: function (m) {
         const x = /Index\s+(-?\d+)\s+out of bounds for length\s+(\d+)/i.exec(m.input);
@@ -1034,11 +1230,9 @@ footer strong { color: var(--text); }
         "Trim and validate the text before parsing.",
         "Catch the exception and handle bad input."
       ],
-      example: {
-        lang: "Java",
-        before: "int n = Integer.parseInt(input);",
-        after: "int n;\ntry {\n    n = Integer.parseInt(input.trim());\n} catch (NumberFormatException e) {\n    System.out.println(\"Please enter a whole number.\");\n    return;\n}"
-      },
+      beforeCode: "int n = Integer.parseInt(input);",
+      afterCode: "int n;\ntry {\n    n = Integer.parseInt(input.trim());\n} catch (NumberFormatException e) {\n    System.out.println(\"Please enter a whole number.\");\n    return;\n}",
+      changeExplanation: "The Before code parses the text directly, so any invalid input throws.\n\nThe After code trims the text and catches `NumberFormatException`, so bad input is handled with a message instead of crashing.",
       prevent: "Never trust user input; validate and catch parse errors.",
       hint: function (m) {
         const s = /For input string:\s*"([^"]*)"/i.exec(m.input);
@@ -1062,11 +1256,9 @@ footer strong { color: var(--text); }
         "Add or correct the base case so each call moves toward it.",
         "For deep problems, use a loop or an explicit stack."
       ],
-      example: {
-        lang: "Java",
-        before: "static int factorial(int n) {\n    return n * factorial(n - 1);\n}",
-        after: "static int factorial(int n) {\n    if (n <= 1) return 1; // base case\n    return n * factorial(n - 1);\n}"
-      },
+      beforeCode: "static int factorial(int n) {\n    return n * factorial(n - 1);\n}",
+      afterCode: "static int factorial(int n) {\n    if (n <= 1) return 1; // base case\n    return n * factorial(n - 1);\n}",
+      changeExplanation: "The Before method calls itself with no stopping condition.\n\nThe After method adds a base case (`n <= 1`) that returns without recursing, so each call moves toward it.",
       prevent: "Define the stopping condition before writing the recursive call.",
       hint: null
     },
@@ -1091,12 +1283,56 @@ footer strong { color: var(--text); }
         "Or run `gdb ./app`, then `run`, then `bt` to see the stack at the crash.",
         "Check pointers for `nullptr` before dereferencing and keep indexes within bounds."
       ],
-      example: {
-        lang: "C++",
-        before: "int* p = nullptr;\n*p = 10;",
-        after: "int value = 0;\nint* p = &value;   // p now points to valid memory\n*p = 10;"
-      },
+      beforeCode: "int* p = nullptr;\n*p = 10;",
+      afterCode: "int value = 0;\nint* p = &value;   // p now points to valid memory\n*p = 10;",
+      changeExplanation: "The Before code writes through a pointer that is `nullptr`, which points to no memory the program may use.\n\nThe After code points `p` at a real variable first. This is a minimal pattern; in your program the invalid access may be elsewhere, so a tool such as AddressSanitizer is the way to find it.",
       prevent: "Prefer `std::vector`, `.at()` and smart pointers (`std::unique_ptr`) over raw pointers and arrays.",
+      detective: {
+        "questions": [
+          {
+            "id": "when",
+            "text": "When does it crash?",
+            "options": [
+              {
+                "id": "start",
+                "label": "Right at startup",
+                "tip": "Early crashes can come from null or uninitialized pointers, or from a very large local array on the stack. Check what runs first in `main`."
+              },
+              {
+                "id": "input",
+                "label": "After reading input or data",
+                "tip": "Check that indexes and sizes derived from the input stay inside your arrays or vectors, and that pointers set from input are valid."
+              },
+              {
+                "id": "random",
+                "label": "Only sometimes or on large input",
+                "tip": "Intermittent crashes can come from out-of-bounds access, use after free, or deep recursion. Running with AddressSanitizer shows the first invalid access."
+              }
+            ]
+          },
+          {
+            "id": "mem",
+            "text": "What do you use for memory?",
+            "options": [
+              {
+                "id": "raw",
+                "label": "Raw pointers, new or delete",
+                "tip": "Check each pointer for `nullptr` before use, and that nothing is used after `delete` or after the object it points to went out of scope."
+              },
+              {
+                "id": "array",
+                "label": "C-style arrays",
+                "tip": "Check every index against the array size. C-style arrays do not check bounds, so a wrong index can silently corrupt memory."
+              },
+              {
+                "id": "vector",
+                "label": "vector or std::string",
+                "tip": "Temporarily use `.at()` so silent bad accesses become `std::out_of_range` with a message, and check for iterators invalidated by `push_back` or `erase`."
+              }
+            ]
+          }
+        ]
+      },
       hint: function (m, ctx) {
         if (!ctx.trim()) return null;
         const nums = findLines(ctx, /\bnullptr\b|\bNULL\b/);
@@ -1147,11 +1383,9 @@ footer strong { color: var(--text); }
         "Add the missing `;` at the end of the statement.",
         "If the error persists, check for unclosed brackets above."
       ],
-      example: {
-        lang: "C++",
-        before: "int x = 5\nstd::cout << x;",
-        after: "int x = 5;\nstd::cout << x;"
-      },
+      beforeCode: "int x = 5\nstd::cout << x;",
+      afterCode: "int x = 5;\nstd::cout << x;",
+      changeExplanation: "The Before code is missing the semicolon after `int x = 5`. The compiler often reports the error on the next line, where it noticed the problem.\n\nThe After code ends the statement with `;`.",
       prevent: "Format your code with clang-format; a missing semicolon shows up as odd indentation.",
       hint: null
     },
@@ -1172,11 +1406,9 @@ footer strong { color: var(--text); }
         "Compare your arguments with each candidate.",
         "Fix the arguments, add a conversion, or include the right header."
       ],
-      example: {
-        lang: "C++",
-        before: "void greet(std::string name);\n\ngreet(42);",
-        after: "void greet(std::string name);\n\ngreet(\"Asha\");"
-      },
+      beforeCode: "void greet(std::string name);\n\ngreet(42);",
+      afterCode: "void greet(std::string name);\n\ngreet(\"Asha\");",
+      changeExplanation: "The Before code passes the integer `42` to a function that expects a `std::string`, and no conversion exists.\n\nThe After code passes a string. Another valid fix could be adding an overload that accepts an `int`.",
       prevent: "Check function signatures when you call unfamiliar functions, and use an editor with signature hints.",
       hint: null
     },
@@ -1196,11 +1428,9 @@ footer strong { color: var(--text); }
         "Change the variable type, or convert explicitly when it is safe (for example with `std::stoi`).",
         "Check the function's return type."
       ],
-      example: {
-        lang: "C++",
-        before: "int count = \"five\";",
-        after: "int count = 5;\n// or, to convert text to a number\nint parsed = std::stoi(\"5\");"
-      },
+      beforeCode: "int count = \"five\";",
+      afterCode: "int count = 5;\n// or, to convert text to a number\nint parsed = std::stoi(\"5\");",
+      changeExplanation: "The Before code assigns a string literal to an `int`, and the compiler has no way to convert between them.\n\nThe After code uses an integer value, or converts text explicitly with `std::stoi` when the data starts as a string.",
       prevent: "Use `auto` where the type is obvious, and avoid C-style casts that hide mistakes.",
       hint: null
     },
@@ -1220,11 +1450,9 @@ footer strong { color: var(--text); }
         "Loop with `i < v.size()`.",
         "Check `empty()` before reading the first or last element."
       ],
-      example: {
-        lang: "C++",
-        before: "std::vector<int> v = {1, 2, 3};\nstd::cout << v.at(5);",
-        after: "std::vector<int> v = {1, 2, 3};\nsize_t i = 5;\nif (i < v.size()) {\n    std::cout << v.at(i);\n}"
-      },
+      beforeCode: "std::vector<int> v = {1, 2, 3};\nstd::cout << v.at(5);",
+      afterCode: "std::vector<int> v = {1, 2, 3};\nsize_t i = 5;\nif (i < v.size()) {\n    std::cout << v.at(i);\n}",
+      changeExplanation: "The Before code asks for element 5 of a vector with 3 elements, so `at()` throws `std::out_of_range`.\n\nThe After code compares the index with `size()` before accessing. If the index is wrong, fix the logic that produced it.",
       prevent: "Prefer range-based `for` loops, which cannot go out of bounds.",
       hint: function (m) {
         const x = /__n\s*\(which is (\d+)\)\s*>=\s*this->size\(\)\s*\(which is (\d+)\)/.exec(m.input);
@@ -1383,7 +1611,8 @@ footer strong { color: var(--text); }
       if (lh) hints.push(lh);
       res = {
         known: true, ruleId: r.id, lang: lang, title: r.name, summary: r.summary,
-        what: r.what, causes: r.causes, fix: r.fix, example: r.example, prevent: r.prevent, hints: hints, note: null
+        what: r.what, causes: r.causes, fix: r.fix, example: r.example, prevent: r.prevent, hints: hints, note: null,
+        lens: lensFromRule(r), detective: r.detective || null
       };
     } else {
       if (lh) hints.push(lh);
@@ -1395,7 +1624,7 @@ footer strong { color: var(--text); }
         what: lang === "other"
           ? "DEVFIX only has detailed rules for JavaScript, Python, Java and C++. For other languages it can only offer general debugging guidance."
           : "DEVFIX doesn't have a matching signature for this message in " + LANG_LABELS[lang] + " yet, so it won't guess a diagnosis. The steps below work for almost any error.",
-        causes: [], fix: GENERAL_STEPS, example: null,
+        causes: [], fix: GENERAL_STEPS, example: null, lens: null, detective: null,
         prevent: "Keep the full error text and stack trace when you search or ask for help, since the details narrow down the cause.",
         hints: hints,
         note: other ? "This message looks like a " + LANG_LABELS[other] + " error. Switch the language to " + LANG_LABELS[other] + " and analyze again for a detailed explanation." : null
@@ -1404,10 +1633,17 @@ footer strong { color: var(--text); }
     return res;
   }
 
+  // Fix Lens is shown only when a rule defines all three lens properties.
+  function lensFromRule(r) {
+    if (!r.beforeCode || !r.afterCode || !r.changeExplanation) return null;
+    return { lang: LANG_LABELS[r.lang], before: r.beforeCode, after: r.afterCode, change: r.changeExplanation };
+  }
+
   // Plain-text versions for the copy buttons.
   function fixText(r) {
     let t = r.fix.map(function (s, i) { return (i + 1) + ". " + s.replace(/`/g, ""); }).join("\n");
-    if (r.example) t += "\n\nExample (" + r.example.lang + "):\n" + r.example.after;
+    if (r.lens) t += "\n\nExample (" + r.lens.lang + ", illustrative):\n" + r.lens.after;
+    else if (r.example) t += "\n\nExample (" + r.example.lang + "):\n" + r.example.after;
     return t;
   }
   function explanationText(r) {
@@ -1433,6 +1669,201 @@ footer strong { color: var(--text); }
     b.type = "button";
     b.addEventListener("click", function () { onClick(b, label); });
     return b;
+  }
+
+  /* ------------------------------------------------------------------
+     Fix Lens: Before / After / What changed? tabs for rules with lens data
+     ------------------------------------------------------------------ */
+  let uidCounter = 0;
+  const LENS_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.9-4.9"/><path d="m8.5 8.5-1.5 2 1.5 2m4-4 1.5 2-1.5 2"/></svg>';
+
+  // Flags the lines of `from` that do not appear (exactly, ignoring trailing space)
+  // in `to`. Blank lines and comment-only lines are never highlighted.
+  function changedLines(from, to) {
+    const other = new Set(to.split("\n").map(function (l) { return l.replace(/\s+$/, ""); }));
+    return from.split("\n").map(function (l) {
+      const t = l.replace(/\s+$/, "");
+      return t.trim() !== "" && !/^\s*(\/\/|#)/.test(t) && !other.has(t);
+    });
+  }
+
+  // One <span> per line so changed lines can be highlighted; text via textContent only.
+  function codeLines(code, flags, label) {
+    const pre = el("pre");
+    pre.tabIndex = 0;
+    pre.setAttribute("role", "region");
+    pre.setAttribute("aria-label", label);
+    const c = el("code");
+    code.split("\n").forEach(function (line, i) {
+      c.appendChild(el("span", "ln" + (flags[i] ? " changed" : ""), line));
+    });
+    pre.appendChild(c);
+    return pre;
+  }
+
+  function buildFixLens(lens) {
+    const uid = "lens" + (++uidCounter);
+    const box = el("div", "lens");
+
+    const head = el("div", "lens-head");
+    const title = el("span", "lens-title");
+    const icon = el("span", "lens-icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = LENS_ICON; // static constant, no user input
+    title.appendChild(icon);
+    title.appendChild(document.createTextNode("Fix Lens"));
+    head.appendChild(title);
+    head.appendChild(el("span", "badge plain", "Illustrative example"));
+    const copyBtn = el("button", "btn ghost small");
+    copyBtn.type = "button";
+    head.appendChild(copyBtn);
+    box.appendChild(head);
+
+    const views = [
+      { key: "before", tab: "Before", copy: "Copy before", done: "Before code copied", text: lens.before,
+        caption: "Problematic code (" + lens.lang + ", illustrative)", legend: "Highlighted lines are the ones the After version changes." },
+      { key: "after", tab: "After", copy: "Copy after", done: "After code copied", text: lens.after,
+        caption: "Corrected code (" + lens.lang + ", illustrative)", legend: "Highlighted lines are new or changed compared with Before." },
+      { key: "change", tab: "What changed?", copy: "Copy explanation", done: "Explanation copied", text: lens.change.replace(/`/g, "") }
+    ];
+
+    const tablist = el("div", "tabs");
+    tablist.setAttribute("role", "tablist");
+    tablist.setAttribute("aria-label", "Fix Lens views");
+    const tabs = [], panels = [];
+    let current = 0;
+
+    function select(i, focus) {
+      current = i;
+      tabs.forEach(function (t, j) {
+        t.setAttribute("aria-selected", j === i ? "true" : "false");
+        t.tabIndex = j === i ? 0 : -1;
+        panels[j].hidden = j !== i;
+      });
+      copyBtn.textContent = views[i].copy;
+      if (focus) tabs[i].focus();
+    }
+
+    views.forEach(function (v, i) {
+      const tab = el("button", "tab", v.tab);
+      tab.type = "button";
+      tab.id = uid + "-tab-" + i;
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-controls", uid + "-panel-" + i);
+      tab.addEventListener("click", function () { select(i, false); });
+      tablist.appendChild(tab);
+      tabs.push(tab);
+
+      const panel = el("div", "tab-panel " + v.key);
+      panel.id = uid + "-panel-" + i;
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", tab.id);
+      if (v.key === "change") {
+        panel.tabIndex = 0;
+        const body = el("div", "change-body");
+        lens.change.split("\n\n").forEach(function (t) { body.appendChild(para(t)); });
+        panel.appendChild(body);
+      } else {
+        const other = v.key === "before" ? lens.after : lens.before;
+        panel.appendChild(el("p", "panel-cap", v.caption));
+        panel.appendChild(codeLines(v.text, changedLines(v.text, other), v.caption));
+        panel.appendChild(el("p", "panel-legend", v.legend));
+      }
+      panels.push(panel);
+    });
+
+    // Keyboard support for the tab pattern: arrows, Home, End
+    tablist.addEventListener("keydown", function (e) {
+      let n = -1;
+      if (e.key === "ArrowRight") n = (current + 1) % views.length;
+      else if (e.key === "ArrowLeft") n = (current + views.length - 1) % views.length;
+      else if (e.key === "Home") n = 0;
+      else if (e.key === "End") n = views.length - 1;
+      if (n === -1) return;
+      e.preventDefault();
+      select(n, true);
+    });
+
+    // Copies whatever the active tab shows (code, or the explanation text)
+    copyBtn.addEventListener("click", function () {
+      const v = views[current];
+      copyText(v.text, copyBtn, v.copy, v.done);
+    });
+
+    box.appendChild(tablist);
+    panels.forEach(function (p) { box.appendChild(p); });
+    box.appendChild(el("p", "lens-note", "Illustrative only. This shows the idea behind the fix; adapt it to your actual code. It is not a drop-in fix for your program."));
+    select(0, false);
+    return box;
+  }
+
+  /* ------------------------------------------------------------------
+     Debugging Detective: up to two questions, answer-based pointers
+     ------------------------------------------------------------------ */
+  function buildDetective(det) {
+    const uid = "det" + (++uidCounter);
+    const qs = det.questions.slice(0, 2);
+    const answers = {};
+    const radios = [];
+
+    const box = el("details", "detective");
+    const sum = el("summary");
+    sum.appendChild(document.createTextNode("Debugging Detective"));
+    sum.appendChild(el("span", "sub", "Optional: answer up to two questions to narrow down where to look."));
+    box.appendChild(sum);
+
+    const body = el("div", "det-body");
+    const guidance = el("div", "guidance");
+    guidance.setAttribute("aria-live", "polite");
+
+    function showGuidance() {
+      guidance.replaceChildren();
+      const picked = qs.filter(function (q) { return answers[q.id]; });
+      if (!picked.length) return;
+      guidance.appendChild(el("h4", "", "Where to look next"));
+      const ul = el("ul");
+      picked.forEach(function (q) {
+        const o = answers[q.id];
+        const li = el("li");
+        li.appendChild(el("strong", "", o.label + ": "));
+        rich(li, o.tip);
+        ul.appendChild(li);
+      });
+      guidance.appendChild(ul);
+      guidance.appendChild(para("These are pointers on where to look, not a diagnosis, and none of them is a guaranteed fix. Check each one against your actual code.", "note"));
+    }
+
+    qs.forEach(function (q) {
+      const fs = el("fieldset", "dq");
+      fs.appendChild(el("legend", "", q.text));
+      const opts = el("div", "opts");
+      q.options.forEach(function (o) {
+        const lab = el("label", "opt");
+        const input = el("input");
+        input.type = "radio";
+        input.name = uid + "-" + q.id;
+        input.value = o.id;
+        input.addEventListener("change", function () { answers[q.id] = o; showGuidance(); });
+        radios.push(input);
+        lab.appendChild(input);
+        lab.appendChild(el("span", "", o.label));
+        opts.appendChild(lab);
+      });
+      fs.appendChild(opts);
+      body.appendChild(fs);
+    });
+
+    const reset = el("button", "btn ghost small", "Reset answers");
+    reset.type = "button";
+    reset.addEventListener("click", function () {
+      radios.forEach(function (r) { r.checked = false; });
+      Object.keys(answers).forEach(function (k) { delete answers[k]; });
+      showGuidance();
+    });
+    body.appendChild(reset);
+    body.appendChild(guidance);
+    box.appendChild(body);
+    return box;
   }
 
   function render(r) {
@@ -1461,10 +1892,17 @@ footer strong { color: var(--text); }
       root.appendChild(section("Clues from your input", "clues", wrap));
     }
     if (r.causes.length) root.appendChild(section("Why might it have happened?", "", list("ul", r.causes)));
+    if (r.detective && r.detective.questions && r.detective.questions.length) {
+      const dsec = el("section", "result-sec");
+      dsec.appendChild(buildDetective(r.detective));
+      root.appendChild(dsec);
+    }
 
     // Fix: ordered steps, plus before/after example when available
     const fixSec = section(r.known ? "Suggested fix" : "General debugging steps", "", list("ol", r.fix));
-    if (r.example) {
+    if (r.lens) {
+      fixSec.appendChild(buildFixLens(r.lens));
+    } else if (r.example) {
       if (r.example.before) fixSec.appendChild(codeBlock("Before (" + r.example.lang + ", illustrative)", r.example.before, "before"));
       fixSec.appendChild(codeBlock((r.example.before ? "After" : "Example") + " (" + r.example.lang + ", illustrative)", r.example.after, "after"));
       fixSec.appendChild(para("This example shows the idea. Adjust it to match your actual code; it is not a drop-in fix for your program.", "note"));
@@ -1584,7 +2022,7 @@ footer strong { color: var(--text); }
     function done() {
       toast(doneMsg);
       btn.textContent = "Copied";
-      setTimeout(function () { btn.textContent = label; }, 1500);
+      setTimeout(function () { if (btn.textContent === "Copied") btn.textContent = label; }, 1500);
     }
     function fail() { toast("Couldn't copy automatically. Select the text and copy it manually.", true); }
     if (navigator.clipboard && window.isSecureContext) {

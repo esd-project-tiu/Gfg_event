@@ -1,0 +1,56 @@
+Here are manual test cases for the current build, grouped by feature. Run them in order, since each group builds on the previous one.
+
+1. Core matching (language, input, expected)
+#	Language	Input	Expected
+1	JavaScript	TypeError: Cannot read properties of undefined (reading 'name')	"Known pattern" badge, rule js-undefined-prop, clue naming name
+2	Python	NameError: name 'x' is not defined	Rule py-name, clue says x is the missing name
+3	Python	ZeroDivisionError: division by zero	Rule py-zero-division
+4	Java	NullPointerException	Rule java-npe
+5	C++	Segmentation fault	Rule cpp-segfault with debugging steps
+6	Python	IndentationError: unexpected indent	py-indentation, not py-syntax (specific rules win)
+7	JavaScript	Uncaught SyntaxError: Unexpected token '<'	js-json-html, not the generic js-syntax
+8	C++	error: no matching function for call to 'greet(int)'	cpp-no-matching-function, not cpp-cannot-convert
+2. Fallbacks and validation
+#	Input	Expected
+9	JavaScript, Totally weird thing happened	"General guidance" badge, "We couldn't identify this error with our current rule set.", 5 debugging steps, no Fix Lens
+10	Other, TypeError: x is not a function	General guidance, plus a note that this looks like a JavaScript error
+11	Empty input, click Analyze	Red message under the textarea, focus returns to it, no result
+12	Whitespace only	Same as 11
+13	Python, <img src=x onerror=alert(1)>	Shown as general guidance, no alert, no image rendered
+3. Fix Lens
+#	Steps	Expected
+14	Analyze test 1	Fix Lens appears with an "Illustrative example" badge. Before tab is selected first
+15	Look at Before	Only console.log(user.name); is highlighted, with a − marker
+16	Click After	Guard lines highlighted with + markers; comment line not highlighted
+17	Click What changed?	Two short paragraphs; no claim of a guaranteed fix
+18	Focus a tab, press → ← Home End	Selection and focus move; Copy button relabels each time
+19	Copy on Before, After, What changed?	Clipboard holds that tab's text; button shows "Copied" for about 1.5 s
+20	Click Copy fix in the header	Clipboard has the steps plus the illustrative after code
+21	Analyze Python ModuleNotFoundError: No module named 'requests'	No Fix Lens; the plain "Example" block shows
+22	Analyze Java ClassNotFoundException: Foo	No Fix Lens; plain before/after blocks show
+4. Debugging Detective
+#	Steps	Expected
+23	Analyze test 1	Collapsed "Debugging Detective" section, 2 questions when opened
+24	Choose "A function result or find()"	One "Where to look next" item appears
+25	Also choose "Only sometimes"	Two items, plus a note that this is not a diagnosis
+26	Click Reset answers	Radios clear, guidance disappears
+27	Analyze Python TypeError: weird	Detective shows with no Fix Lens (generic rule)
+28	Analyze Java NullPointerException, then C++ Segmentation fault	Each has its own two questions
+29	Analyze ZeroDivisionError	No Detective section
+30	Tab through the options with a keyboard	Visible focus ring; arrow keys move between options in a group
+5. Samples, context and state
+#	Steps	Expected
+31	Click each of the 5 sample chips	Language and error fill in, context opens, nothing is analyzed until you click Analyze
+32	Analyze the JS sample	Clue: "error points to line 3" with the matching snippet line
+33	Analyze the Python NameError sample	Clue says total is never declared in your snippet
+34	After a result, edit the error text or change language	Result dims and the "Your input changed" banner appears
+35	Click Clear	Fields, context and result all cleared, focus on the error box
+36	Ctrl/⌘ + Enter in the textarea	Runs the analysis
+37	Analyze the same input twice	Identical output both times
+6. Responsive and accessibility
+38. At about 375 px width: no sideways page scroll, code blocks scroll inside their own box, the tabs row scrolls, and the buttons stack.
+39. Tab through the whole page with a keyboard: every control is reachable and shows a focus ring.
+40. With "reduce motion" on in your OS: the result entrance animation is off.
+41. Open the file by double-click (file://) and from GitHub Pages: copy works in both.
+
+I can also turn these into an automated script, like the one I used to check the build. Say the word if you want it.
